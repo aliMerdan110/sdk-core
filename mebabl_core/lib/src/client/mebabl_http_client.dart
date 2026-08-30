@@ -35,6 +35,10 @@ class MebablHttpClient {
     );
   }
 
+  void addInterceptor(Interceptor interceptor) {
+    _dio.interceptors.add(interceptor);
+  }
+
   Future<void> _onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
@@ -42,12 +46,6 @@ class MebablHttpClient {
     options.headers['X-Application-Id'] = config.applicationId;
 
     options.headers['X-Api-Key'] = config.apiKey;
-
-    final accessToken = await tokenStorage.getAccessToken();
-
-    if (accessToken != null && accessToken.isNotEmpty) {
-      options.headers['Authorization'] = 'Bearer $accessToken';
-    }
 
     handler.next(options);
   }
