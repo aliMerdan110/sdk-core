@@ -2,7 +2,7 @@ name: mebabl_core
 description: Core SDK package for Mebabl platform, providing configuration, secure token storage, and a robust HTTP client for Flutter applications.
 version: 1.0.0
 repository: https://github.com/aliMerdan110/mebabl_core # أضف هذا السطر
-publish_to: "none"
+
 
 environment:
   sdk: ">=3.5.0 <4.0.0"

@@ -75,17 +75,47 @@ class MebablHttpClient {
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+    ResponseType? responseType,
   }) async {
     try {
       return await _dio.post<T>(
         path,
         data: data,
         queryParameters: queryParameters,
+        options: Options(
+          headers: headers,
+          responseType: responseType,
+        ),
       );
     } on DioException catch (error) {
       throw _mapException(error);
     }
   }
+
+  // 
+  Future<Response<T>> postUrl<T>(
+  String url, {
+  dynamic data,
+  Map<String, dynamic>? queryParameters,
+  Map<String, dynamic>? headers,
+  ResponseType? responseType,
+}) async {
+  try {
+    return await _dio.post<T>(
+      url,
+      data: data,
+      queryParameters: queryParameters,
+      options: Options(
+        headers: headers,
+        responseType: responseType,
+      ),
+    );
+  } on DioException catch (error) {
+    throw _mapException(error);
+  }
+}
+// 
 
   Future<Response<T>> put<T>(
     String path, {
