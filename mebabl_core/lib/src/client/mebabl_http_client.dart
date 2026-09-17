@@ -100,23 +100,6 @@ class MebablHttpClient {
     }
   }
 
-  Future<Response<List<int>>> downloadBytes(
-    String path, {
-    Map<String, dynamic>? headers,
-  }) async {
-    try {
-      return await _dio.get<List<int>>(
-        path,
-        options: Options(
-          responseType: ResponseType.bytes,
-          headers: headers,
-        ),
-      );
-    } on DioException catch (error) {
-      throw _mapException(error);
-    }
-  }
-
   Future<Response<T>> post<T>(
     String path, {
     dynamic data,
