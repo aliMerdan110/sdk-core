@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 
 import 'auth/token_storage.dart';
+import 'client/interceptors/mebabl_auth_interceptor.dart';
 import 'client/mebabl_http_client.dart';
 import 'config/mebabl_config.dart';
 
@@ -34,78 +35,56 @@ class MebablCore {
 
   static bool get isInitialized => _instance != null;
 
-  static Future<void> initialize({
+  static Future<MebablCore> initialize({
     String assetPath = 'assets/mebabl.json',
   }) async {
-    if (_instance != null) {
-      return;
-    }
+    final existing = _instance;
 
-    // ------------------------------------------------------------
-    // 1. Load mebabl.json
-    // ------------------------------------------------------------
+    if (existing != null) {
+      return existing;
+    }
 
     final jsonString = await rootBundle.loadString(assetPath);
 
-    final jsonMap = jsonDecode(jsonString);
+    final decoded = jsonDecode(jsonString);
 
-    if (jsonMap is! Map<String, dynamic>) {
+    if (decoded is! Map<String, dynamic>) {
       throw const FormatException(
         'Invalid mebabl.json format.',
       );
     }
 
-    // ------------------------------------------------------------
-    // 2. Validate required configuration
-    // ------------------------------------------------------------
-
-    const requiredFields = [
-      'applicationId',
-      'platformId',
-      'platform',
-      'apiKey',
-      'baseUrl',
-    ];
-
-    for (final field in requiredFields) {
-      final value = jsonMap[field];
-
-      if (value is! String || value.trim().isEmpty) {
-        throw FormatException(
-          'Invalid configuration: "$field" is missing.',
-        );
-      }
-    }
-
-    // ------------------------------------------------------------
-    // 3. Create MebablConfig
-    // ------------------------------------------------------------
-
-    final config = MebablConfig.fromJson(jsonMap);
-
-    // ------------------------------------------------------------
-    // 4. Create token storage
-    // ------------------------------------------------------------
+    final config = MebablConfig.fromJson(decoded);
 
     final tokenStorage = MebablTokenStorage();
-
-    // ------------------------------------------------------------
-    // 5. Create HTTP client
-    // ------------------------------------------------------------
 
     final http = MebablHttpClient(
       config: config,
       tokenStorage: tokenStorage,
     );
 
-    // ------------------------------------------------------------
-    // 6. Create Core instance
-    // ------------------------------------------------------------
-
-    _instance = MebablCore._(
+    final instance = MebablCore._(
       config: config,
       tokenStorage: tokenStorage,
       http: http,
+    );
+
+    _instance = instance;
+
+    return instance;
+  }
+
+  static void reset() {
+    _instance = null;
+  }
+
+  void addAuthInterceptor({
+    required Future<String?> Function() getValidAccessToken,
+  }) {
+    http.addInterceptor(
+      MebablAuthInterceptor(
+        getValidAccessToken: getValidAccessToken,
+      ),
     );
   }
 }

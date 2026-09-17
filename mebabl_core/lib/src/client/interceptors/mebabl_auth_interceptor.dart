@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 
 class MebablAuthInterceptor extends Interceptor {
-  // دالة تُمرر من الخارج لجلب التوكن الصالح دون الحاجة لمعرفة تفاصيل الـ Auth
   final Future<String?> Function() getValidAccessToken;
 
   MebablAuthInterceptor({
@@ -10,8 +9,12 @@ class MebablAuthInterceptor extends Interceptor {
 
   bool _isAuthenticationEndpoint(String path) {
     return path == '/api/application-auth/token' ||
+        path == '/api/sdk/auth/register' ||
         path == '/api/sdk/auth/login' ||
-        path == '/api/sdk/auth/refresh';
+        path == '/api/sdk/auth/refresh' ||
+        path == '/api/sdk/auth/forgot-password' ||
+        path == '/api/sdk/auth/reset-password' ||
+        path == '/api/sdk/auth/verify-email';
   }
 
   @override
@@ -19,13 +22,12 @@ class MebablAuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    try {
-      // مسارات المصادقة لا تحتاج إلى توكن
-      if (_isAuthenticationEndpoint(options.path)) {
-        handler.next(options);
-        return;
-      }
+    if (_isAuthenticationEndpoint(options.path)) {
+      handler.next(options);
+      return;
+    }
 
+    try {
       final accessToken = await getValidAccessToken();
 
       if (accessToken != null && accessToken.isNotEmpty) {
@@ -33,11 +35,11 @@ class MebablAuthInterceptor extends Interceptor {
       }
 
       handler.next(options);
-    } catch (e) {
+    } catch (error) {
       handler.reject(
         DioException(
           requestOptions: options,
-          error: e,
+          error: error,
           type: DioExceptionType.unknown,
         ),
       );

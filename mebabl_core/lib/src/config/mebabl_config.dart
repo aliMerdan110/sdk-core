@@ -20,15 +20,45 @@ class MebablConfig {
   });
 
   factory MebablConfig.fromJson(Map<String, dynamic> json) {
+    String requiredString(String key) {
+      final value = json[key];
+
+      if (value is! String || value.trim().isEmpty) {
+        throw FormatException(
+          'Invalid configuration: "$key" is missing.',
+        );
+      }
+
+      return value.trim();
+    }
+
+    String? optionalString(String key) {
+      final value = json[key];
+
+      if (value == null) {
+        return null;
+      }
+
+      if (value is! String) {
+        throw FormatException(
+          'Invalid configuration: "$key".',
+        );
+      }
+
+      final result = value.trim();
+
+      return result.isEmpty ? null : result;
+    }
+
     return MebablConfig(
-      applicationId: json['applicationId'] as String,
-      platformId: json['platformId'] as String,
-      platform: json['platform'] as String,
-      packageName: json['packageName'] as String?,
-      bundleId: json['bundleId'] as String?,
-      domain: json['domain'] as String?,
-      apiKey: json['apiKey'] as String,
-      baseUrl: json['baseUrl'] as String,
+      applicationId: requiredString('applicationId'),
+      platformId: requiredString('platformId'),
+      platform: requiredString('platform'),
+      apiKey: requiredString('apiKey'),
+      baseUrl: requiredString('baseUrl'),
+      packageName: optionalString('packageName'),
+      bundleId: optionalString('bundleId'),
+      domain: optionalString('domain'),
     );
   }
 
@@ -57,7 +87,8 @@ class MebablConfig {
   }) {
     return MebablConfig(
       applicationId: applicationId ?? this.applicationId,
-      platformId: platformId ?? this.platformId,
+      platformId: platformId ?? this.platformId
+      ,
       platform: platform ?? this.platform,
       packageName: packageName ?? this.packageName,
       bundleId: bundleId ?? this.bundleId,

@@ -16,11 +16,11 @@ class MebablHttpClient {
   }) : tokenStorage = tokenStorage ?? MebablTokenStorage() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: config.baseUrl,
+        baseUrl: _normalizeBaseUrl(config.baseUrl),
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 30),
         sendTimeout: const Duration(seconds: 30),
-        headers: {
+        headers: const {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
@@ -30,13 +30,22 @@ class MebablHttpClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: _onRequest,
-        onError: _onError,
       ),
     );
   }
 
+  String _normalizeBaseUrl(String value) {
+    return value.trim().replaceFirst(RegExp(r'/+$'), '');
+  }
+
+  Dio get dio => _dio;
+
   void addInterceptor(Interceptor interceptor) {
     _dio.interceptors.add(interceptor);
+  }
+
+  void removeInterceptor(Interceptor interceptor) {
+    _dio.interceptors.remove(interceptor);
   }
 
   Future<void> _onRequest(
@@ -44,27 +53,64 @@ class MebablHttpClient {
     RequestInterceptorHandler handler,
   ) async {
     options.headers['X-Application-Id'] = config.applicationId;
-
     options.headers['X-Api-Key'] = config.apiKey;
+    options.headers['X-Platform-Id'] = config.platformId;
 
     handler.next(options);
-  }
-
-  void _onError(
-    DioException error,
-    ErrorInterceptorHandler handler,
-  ) {
-    handler.next(error);
   }
 
   Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+    ResponseType? responseType,
   }) async {
     try {
       return await _dio.get<T>(
         path,
         queryParameters: queryParameters,
+        options: Options(
+          headers: headers,
+          responseType: responseType,
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapException(error);
+    }
+  }
+
+  Future<Response<T>> postMultipart<T>(
+    String path, {
+    required FormData data,
+    Map<String, dynamic>? headers,
+  }) async {
+    try {
+      return await _dio.post<T>(
+        path,
+        data: data,
+        options: Options(
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            ...?headers,
+          },
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapException(error);
+    }
+  }
+
+  Future<Response<List<int>>> downloadBytes(
+    String path, {
+    Map<String, dynamic>? headers,
+  }) async {
+    try {
+      return await _dio.get<List<int>>(
+        path,
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: headers,
+        ),
       );
     } on DioException catch (error) {
       throw _mapException(error);
@@ -93,38 +139,16 @@ class MebablHttpClient {
     }
   }
 
-  // 
-  Future<Response<T>> postUrl<T>(
-  String url, {
-  dynamic data,
-  Map<String, dynamic>? queryParameters,
-  Map<String, dynamic>? headers,
-  ResponseType? responseType,
-}) async {
-  try {
-    return await _dio.post<T>(
-      url,
-      data: data,
-      queryParameters: queryParameters,
-      options: Options(
-        headers: headers,
-        responseType: responseType,
-      ),
-    );
-  } on DioException catch (error) {
-    throw _mapException(error);
-  }
-}
-// 
-
   Future<Response<T>> put<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? headers,
   }) async {
     try {
       return await _dio.put<T>(
         path,
         data: data,
+        options: Options(headers: headers),
       );
     } on DioException catch (error) {
       throw _mapException(error);
@@ -134,39 +158,60 @@ class MebablHttpClient {
   Future<Response<T>> delete<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? headers,
   }) async {
     try {
       return await _dio.delete<T>(
         path,
         data: data,
+        options: Options(headers: headers),
       );
     } on DioException catch (error) {
       throw _mapException(error);
     }
   }
 
-  MebablException _mapException(
-    DioException error,
-  ) {
-    final statusCode = error.response?.statusCode;
+  Future<Response<T>> postUrl<T>(
+    String url, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
+    ResponseType? responseType,
+  }) async {
+    try {
+      return await _dio.post<T>(
+        url,
+        data: data,
+        queryParameters: queryParameters,
+        options: Options(
+          headers: headers,
+          responseType: responseType,
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapException(error);
+    }
+  }
 
+  MebablException _mapException(DioException error) {
+    final statusCode = error.response?.statusCode;
     final responseData = error.response?.data;
 
     String message = 'An unexpected error occurred.';
 
-    if (responseData is Map<String, dynamic>) {
+    if (responseData is Map) {
       final serverMessage = responseData['message'];
 
-      if (serverMessage is String && serverMessage.isNotEmpty) {
+      if (serverMessage is String && serverMessage.trim().isNotEmpty) {
         message = serverMessage;
       } else {
         final title = responseData['title'];
 
-        if (title is String && title.isNotEmpty) {
+        if (title is String && title.trim().isNotEmpty) {
           message = title;
         }
       }
-    } else if (error.message != null && error.message!.isNotEmpty) {
+    } else if (error.message != null && error.message!.trim().isNotEmpty) {
       message = error.message!;
     }
 

@@ -1,8 +1,8 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class MebablTokenStorage {
-  static const _accessTokenKey = 'mebabl_access_token';
-  static const _refreshTokenKey = 'mebabl_refresh_token';
+  static const String _accessTokenKey = 'mebabl_access_token';
+  static const String _refreshTokenKey = 'mebabl_refresh_token';
 
   final FlutterSecureStorage _storage;
 
@@ -14,15 +14,16 @@ class MebablTokenStorage {
     required String accessToken,
     required String refreshToken,
   }) async {
-    await _storage.write(
-      key: _accessTokenKey,
-      value: accessToken,
-    );
-
-    await _storage.write(
-      key: _refreshTokenKey,
-      value: refreshToken,
-    );
+    await Future.wait([
+      _storage.write(
+        key: _accessTokenKey,
+        value: accessToken,
+      ),
+      _storage.write(
+        key: _refreshTokenKey,
+        value: refreshToken,
+      ),
+    ]);
   }
 
   Future<String?> getAccessToken() {
@@ -37,22 +38,30 @@ class MebablTokenStorage {
     );
   }
 
-  Future<void> saveAccessToken(
-    String accessToken,
-  ) {
+  Future<void> saveAccessToken(String accessToken) {
     return _storage.write(
       key: _accessTokenKey,
       value: accessToken,
     );
   }
 
-  Future<void> clear() async {
-    await _storage.delete(
-      key: _accessTokenKey,
-    );
-
-    await _storage.delete(
+  Future<void> saveRefreshToken(String refreshToken) {
+    return _storage.write(
       key: _refreshTokenKey,
+      value: refreshToken,
     );
+  }
+
+  Future<bool> hasSession() async {
+    final refreshToken = await getRefreshToken();
+
+    return refreshToken != null && refreshToken.isNotEmpty;
+  }
+
+  Future<void> clear() async {
+    await Future.wait([
+      _storage.delete(key: _accessTokenKey),
+      _storage.delete(key: _refreshTokenKey),
+    ]);
   }
 }
