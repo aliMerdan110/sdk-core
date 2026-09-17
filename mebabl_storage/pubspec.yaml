@@ -1,6 +1,7 @@
 name: mebabl_storage
-description: Mebabl Storage SDK for Flutter.
-version: 1.0.9
+
+description: Mebabl Storage SDK for binary file upload, URL retrieval, and deletion.
+version: 1.1.0
 
 
 homepage: https://mebabl.com

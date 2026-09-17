@@ -45,14 +45,6 @@ class MebablStorageService {
     return response.data!['url'] as String;
   }
 
-  Future<Uint8List> download(String fileId) async {
-    final response = await core.http.downloadBytes(
-      '/api/sdk/storage/$fileId/content',
-    );
-
-    return Uint8List.fromList(response.data!);
-  }
-
   Future<void> delete(String fileId) async {
     await core.http.delete(
       '/api/sdk/storage/$fileId',
