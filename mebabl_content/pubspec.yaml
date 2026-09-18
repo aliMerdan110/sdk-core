@@ -1,0 +1,13 @@
+name: mebabl_content
+description: Content and posts SDK for Mebabl Platform.
+version: 1.0.0
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  mebabl_core: ^1.0.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
