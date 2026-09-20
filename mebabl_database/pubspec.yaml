@@ -1,0 +1,20 @@
+name: mebabl_database
+description: A Flutter SDK for Mebabl database services, including collections, documents, and queries.
+version: 1.0.5
+repository: https://github.com/aliMerdan110/Mebabl.Sdk
+homepage: https://mebabl.com
+issue_tracker: https://github.com/aliMerdan110/Mebabl.Sdk/issues
+
+
+environment:
+  sdk: ">=3.8.1 <4.0.0"
+  flutter: ">=3.32.0"
+
+dependencies:
+  mebabl_core: ^1.0.9
+  dio: ^5.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
