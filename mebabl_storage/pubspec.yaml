@@ -1,7 +1,7 @@
 name: mebabl_storage
 
 description: Mebabl Storage SDK for binary file upload, URL retrieval, and deletion.
-version: 1.1.0
+version: 1.1.1
 
 
 homepage: https://mebabl.com
@@ -16,8 +16,8 @@ dependencies:
   flutter:
     sdk: flutter
   dio: ^5.9.0
-  mebabl_core: ^1.0.5
-  mebabl_auth: ^1.0.5
+  mebabl_core: ^1.0.9
+  mebabl_auth: ^1.0.7
 
 dev_dependencies:
   flutter_test:

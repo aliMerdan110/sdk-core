@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0 - 2026-09-17
+## 1.1.1 - 2026-09-20
 
 - Initial release.
 - Upload binary files.
