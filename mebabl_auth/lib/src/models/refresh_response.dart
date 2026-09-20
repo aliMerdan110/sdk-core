@@ -1,3 +1,5 @@
+// lib/src/models/refresh_response.dart
+
 class MebablRefreshResponse {
   final String accessToken;
   final String refreshToken;

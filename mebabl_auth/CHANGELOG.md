@@ -1,3 +1,3 @@
-## 1.0.0
-
-* Initial release of Mebabl Auth SDK, providing login, token refresh, and user authentication management on top of mebabl_core.
+## 1.0.6
+* Updated authentication handling logic.
+* Fixed bugs in login flow.

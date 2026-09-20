@@ -1,3 +1,5 @@
+// lib/src/models/login_response.dart
+
 class MebablLoginResponse {
   final String accountId;
   final String userId;

@@ -1,3 +1,5 @@
+// lib/src/models/register_request.dart
+
 class MebablRegisterRequest {
   final String email;
   final String username;

@@ -1,3 +1,5 @@
+// lib/src/models/auth_user.dart
+
 class AuthUser {
   final String accountId;
   final String userId;
@@ -24,13 +26,20 @@ class AuthUser {
       applicationId: json['applicationId']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       username: json['username']?.toString() ?? '',
-      roles: List<String>.from(
-        json['roles'] ?? const [],
-      ),
-      permissions: List<String>.from(
-        json['permissions'] ?? const [],
-      ),
+      roles: _stringList(json['roles']),
+      permissions: _stringList(json['permissions']),
     );
+  }
+
+  static List<String> _stringList(dynamic value) {
+    if (value is! List) {
+      return const [];
+    }
+
+    return value
+        .map((item) => item.toString())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
   }
 
   bool hasRole(String role) {
@@ -44,7 +53,9 @@ class AuthUser {
   @override
   String toString() {
     return 'AuthUser('
+        'accountId: $accountId, '
         'userId: $userId, '
+        'applicationId: $applicationId, '
         'email: $email, '
         'username: $username, '
         'roles: $roles, '

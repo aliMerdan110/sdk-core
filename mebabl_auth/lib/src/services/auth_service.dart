@@ -1,23 +1,28 @@
+// lib/src/services/auth_service.dart
+
 import 'dart:convert';
 
+import 'package:mebabl_auth/mebabl_auth.dart';
 import 'package:mebabl_auth/src/models/register_response.dart';
+import 'package:mebabl_auth/src/models/session_manager.dart';
 import 'package:mebabl_core/mebabl_core.dart';
-
-import '../models/login_response.dart';
-import '../models/refresh_response.dart';
-import '../models/auth_user.dart';
 
 class MebablAuthService implements MebablAuthProvider {
   final MebablCore core;
 
+  late final MebablSessionManager session;
+
+  Future<String?>? _refreshFuture;
+
   MebablAuthService({
     required this.core,
   }) {
-    // التصحيح هنا: تمرير الدالة بدلاً من الكلاس
-    core.http.addInterceptor(
-      MebablAuthInterceptor(
-        getValidAccessToken: () => getValidAccessToken(),
-      ),
+    core.addAuthInterceptor(
+      getValidAccessToken: getValidAccessToken,
+    );
+
+    session = MebablSessionManager(
+      auth: this,
     );
   }
 
@@ -30,14 +35,16 @@ class MebablAuthService implements MebablAuthProvider {
       }
 
       final payload = parts[1];
-
       final normalized = base64Url.normalize(payload);
-
       final decoded = utf8.decode(
         base64Url.decode(normalized),
       );
 
       final data = jsonDecode(decoded);
+
+      if (data is! Map<String, dynamic>) {
+        return true;
+      }
 
       final exp = data['exp'];
 
@@ -50,28 +57,26 @@ class MebablAuthService implements MebablAuthProvider {
         isUtc: true,
       );
 
-      return DateTime.now().toUtc().isAfter(expiry);
+      return !DateTime.now().toUtc().isBefore(expiry);
     } catch (_) {
       return true;
     }
   }
-
-  // ------------------------------------------------------------
-  // REGISTER
-  // ------------------------------------------------------------
 
   Future<MebablRegisterResponse> register({
     required String email,
     required String username,
     required String password,
   }) async {
+    final request = MebablRegisterRequest(
+      email: email,
+      username: username,
+      password: password,
+    );
+
     final response = await core.http.post<Map<String, dynamic>>(
       '/api/sdk/auth/register',
-      data: {
-        'email': email,
-        'username': username,
-        'password': password,
-      },
+      data: request.toJson(),
     );
 
     final data = response.data;
@@ -89,12 +94,13 @@ class MebablAuthService implements MebablAuthProvider {
       refreshToken: result.refreshToken,
     );
 
+    try {
+      final user = await me();
+      session.signedIn(user);
+    } catch (_) {}
+
     return result;
   }
-
-  // ------------------------------------------------------------
-  // LOGIN
-  // ------------------------------------------------------------
 
   Future<MebablLoginResponse> login({
     required String email,
@@ -123,12 +129,13 @@ class MebablAuthService implements MebablAuthProvider {
       refreshToken: result.refreshToken,
     );
 
+    try {
+      final user = await me();
+      session.signedIn(user);
+    } catch (_) {}
+
     return result;
   }
-
-  // ------------------------------------------------------------
-  // REFRESH
-  // ------------------------------------------------------------
 
   Future<MebablRefreshResponse> refresh() async {
     final refreshToken = await core.tokenStorage.getRefreshToken();
@@ -164,7 +171,6 @@ class MebablAuthService implements MebablAuthProvider {
     return result;
   }
 
-  // method to get the current authenticated user
   Future<AuthUser> me() async {
     final response = await core.http.get<Map<String, dynamic>>(
       '/api/sdk/auth/me',
@@ -181,13 +187,25 @@ class MebablAuthService implements MebablAuthProvider {
     return AuthUser.fromJson(data);
   }
 
-  Future<bool> isAuthenticated() async {
-    final accessToken = await core.tokenStorage.getAccessToken();
+  AuthUser? get currentUser => session.currentUser;
 
-    return accessToken != null && accessToken.isNotEmpty;
+  Stream<AuthUser?> get authStateChanges => session.authStateChanges;
+
+  Future<void> initialize() {
+    return session.initialize();
   }
 
-  Future<String?> getAccessToken() async {
+  Future<AuthUser?> reload() {
+    return session.reload();
+  }
+
+  Future<bool> isAuthenticated() async {
+    final token = await getValidAccessToken();
+
+    return token != null && token.isNotEmpty;
+  }
+
+  Future<String?> getAccessToken() {
     return core.tokenStorage.getAccessToken();
   }
 
@@ -203,19 +221,39 @@ class MebablAuthService implements MebablAuthProvider {
       return accessToken;
     }
 
+    final existingRefresh = _refreshFuture;
+
+    if (existingRefresh != null) {
+      return existingRefresh;
+    }
+
+    final refreshFuture = _performRefresh();
+
+    _refreshFuture = refreshFuture;
+
+    try {
+      return await refreshFuture;
+    } finally {
+      if (identical(_refreshFuture, refreshFuture)) {
+        _refreshFuture = null;
+      }
+    }
+  }
+
+  Future<String?> _performRefresh() async {
     try {
       final response = await refresh();
-
       return response.accessToken;
     } on MebablException {
-      await core.tokenStorage.clear();
+      await clearLocalSession();
       rethrow;
     }
   }
 
-  // ------------------------------------------------------------
-  // LOGOUT
-  // ------------------------------------------------------------
+  Future<void> clearLocalSession() async {
+    await core.tokenStorage.clear();
+    session.signedOutLocal();
+  }
 
   Future<void> logout() async {
     final refreshToken = await core.tokenStorage.getRefreshToken();
@@ -230,15 +268,9 @@ class MebablAuthService implements MebablAuthProvider {
         );
       }
     } finally {
-      await core.tokenStorage.clear();
+      await clearLocalSession();
     }
   }
-
-// ------------------------------------------------------------
-
-  // ------------------------------------------------------------
-  // FORGOT PASSWORD
-  // ------------------------------------------------------------
 
   Future<String> forgotPassword({
     required String email,
@@ -261,10 +293,6 @@ class MebablAuthService implements MebablAuthProvider {
     return data['message']?.toString() ??
         'Password reset instructions have been sent.';
   }
-
-  // ------------------------------------------------------------
-  // RESET PASSWORD
-  // ------------------------------------------------------------
 
   Future<String> resetPassword({
     required String token,
@@ -290,10 +318,6 @@ class MebablAuthService implements MebablAuthProvider {
         'Password has been reset successfully.';
   }
 
-  // ------------------------------------------------------------
-  // VERIFY EMAIL
-  // ------------------------------------------------------------
-
   Future<String> verifyEmail({
     required String token,
   }) async {
@@ -316,10 +340,6 @@ class MebablAuthService implements MebablAuthProvider {
         'Email has been verified successfully.';
   }
 
-  // ------------------------------------------------------------
-  // RESEND VERIFICATION EMAIL
-  // ------------------------------------------------------------
-
   Future<String> resendVerificationEmail() async {
     final response = await core.http.post<Map<String, dynamic>>(
       '/api/sdk/auth/resend-verification-email',
@@ -333,6 +353,7 @@ class MebablAuthService implements MebablAuthProvider {
       );
     }
 
-    return data['message']?.toString() ?? 'Verification email has been sent.';
+    return data['message']?.toString() ??
+        'Verification email has been sent.';
   }
 }
