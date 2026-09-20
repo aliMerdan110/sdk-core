@@ -1,3 +1,5 @@
+// lib/src/errors/mebabl_exception.dart
+
 class MebablException implements Exception {
   final String message;
   final int? statusCode;

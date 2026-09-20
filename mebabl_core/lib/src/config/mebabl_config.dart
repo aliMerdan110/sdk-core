@@ -1,3 +1,5 @@
+// lib/src/config/mebabl_config.dart
+
 class MebablConfig {
   final String applicationId;
   final String platformId;
@@ -87,8 +89,7 @@ class MebablConfig {
   }) {
     return MebablConfig(
       applicationId: applicationId ?? this.applicationId,
-      platformId: platformId ?? this.platformId
-      ,
+      platformId: platformId ?? this.platformId,
       platform: platform ?? this.platform,
       packageName: packageName ?? this.packageName,
       bundleId: bundleId ?? this.bundleId,

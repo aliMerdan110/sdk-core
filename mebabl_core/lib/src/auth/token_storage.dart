@@ -1,3 +1,5 @@
+// lib/src/auth/token_storage.dart
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class MebablTokenStorage {
@@ -53,9 +55,11 @@ class MebablTokenStorage {
   }
 
   Future<bool> hasSession() async {
+    final accessToken = await getAccessToken();
     final refreshToken = await getRefreshToken();
 
-    return refreshToken != null && refreshToken.isNotEmpty;
+    return (accessToken != null && accessToken.isNotEmpty) ||
+        (refreshToken != null && refreshToken.isNotEmpty);
   }
 
   Future<void> clear() async {

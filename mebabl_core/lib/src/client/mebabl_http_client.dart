@@ -1,3 +1,5 @@
+// lib/src/client/mebabl_http_client.dart
+
 import 'package:dio/dio.dart';
 
 import '../auth/token_storage.dart';
@@ -79,27 +81,6 @@ class MebablHttpClient {
     }
   }
 
-  Future<Response<T>> postMultipart<T>(
-    String path, {
-    required FormData data,
-    Map<String, dynamic>? headers,
-  }) async {
-    try {
-      return await _dio.post<T>(
-        path,
-        data: data,
-        options: Options(
-          headers: {
-            'Content-Type': 'multipart/form-data',
-            ...?headers,
-          },
-        ),
-      );
-    } on DioException catch (error) {
-      throw _mapException(error);
-    }
-  }
-
   Future<Response<T>> post<T>(
     String path, {
     dynamic data,
@@ -122,16 +103,43 @@ class MebablHttpClient {
     }
   }
 
+  Future<Response<T>> postMultipart<T>(
+    String path, {
+    required FormData data,
+    Map<String, dynamic>? headers,
+  }) async {
+    try {
+      return await _dio.post<T>(
+        path,
+        data: data,
+        options: Options(
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            ...?headers,
+          },
+        ),
+      );
+    } on DioException catch (error) {
+      throw _mapException(error);
+    }
+  }
+
   Future<Response<T>> put<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
+    ResponseType? responseType,
   }) async {
     try {
       return await _dio.put<T>(
         path,
         data: data,
-        options: Options(headers: headers),
+        queryParameters: queryParameters,
+        options: Options(
+          headers: headers,
+          responseType: responseType,
+        ),
       );
     } on DioException catch (error) {
       throw _mapException(error);
@@ -163,13 +171,19 @@ class MebablHttpClient {
   Future<Response<T>> delete<T>(
     String path, {
     dynamic data,
+    Map<String, dynamic>? queryParameters,
     Map<String, dynamic>? headers,
+    ResponseType? responseType,
   }) async {
     try {
       return await _dio.delete<T>(
         path,
         data: data,
-        options: Options(headers: headers),
+        queryParameters: queryParameters,
+        options: Options(
+          headers: headers,
+          responseType: responseType,
+        ),
       );
     } on DioException catch (error) {
       throw _mapException(error);

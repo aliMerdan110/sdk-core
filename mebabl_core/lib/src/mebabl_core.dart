@@ -1,7 +1,10 @@
+// lib/src/mebabl_core.dart
+
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
+import 'auth/mebabl_auth_provider.dart';
 import 'auth/token_storage.dart';
 import 'client/interceptors/mebabl_auth_interceptor.dart';
 import 'client/mebabl_http_client.dart';
@@ -45,7 +48,6 @@ class MebablCore {
     }
 
     final jsonString = await rootBundle.loadString(assetPath);
-
     final decoded = jsonDecode(jsonString);
 
     if (decoded is! Map<String, dynamic>) {
@@ -55,7 +57,6 @@ class MebablCore {
     }
 
     final config = MebablConfig.fromJson(decoded);
-
     final tokenStorage = MebablTokenStorage();
 
     final http = MebablHttpClient(
