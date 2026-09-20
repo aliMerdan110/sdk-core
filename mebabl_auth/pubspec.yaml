@@ -1,6 +1,6 @@
 name: mebabl_auth
 description: Authentication SDK package for Mebabl platform, built on top of mebabl_core.
-version: 1.0.6
+version: 1.0.7
 repository: https://github.com/aliMerdan110/mebabl_auth
 
 environment:
@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  mebabl_core: ^1.0.8 # <--- الربط بالحزمة المنشورة
+  mebabl_core: ^1.0.9 # <--- الربط بالحزمة المنشورة
 
 dev_dependencies:
   flutter_test:
