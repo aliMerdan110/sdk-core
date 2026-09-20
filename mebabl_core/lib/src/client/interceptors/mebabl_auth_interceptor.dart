@@ -27,6 +27,11 @@ class MebablAuthInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     if (_isAuthenticationEndpoint(options.path)) {
+      print(
+        '[MebablAuthInterceptor] AUTH ENDPOINT BYPASS: '
+        '${options.method} ${options.uri}',
+      );
+
       handler.next(options);
       return;
     }
@@ -34,12 +39,34 @@ class MebablAuthInterceptor extends Interceptor {
     try {
       final accessToken = await getValidAccessToken();
 
+      print(
+        '[MebablAuthInterceptor] REQUEST: '
+        '${options.method} ${options.uri}',
+      );
+
+      print(
+        '[MebablAuthInterceptor] TOKEN: '
+        '${accessToken == null || accessToken.isEmpty ? 'NULL' : 'AVAILABLE'}',
+      );
+
       if (accessToken != null && accessToken.isNotEmpty) {
         options.headers['Authorization'] = 'Bearer $accessToken';
+
+        print(
+          '[MebablAuthInterceptor] AUTHORIZATION ATTACHED',
+        );
+      } else {
+        print(
+          '[MebablAuthInterceptor] NO ACCESS TOKEN',
+        );
       }
 
       handler.next(options);
     } catch (error) {
+      print(
+        '[MebablAuthInterceptor] ERROR: $error',
+      );
+
       handler.reject(
         DioException(
           requestOptions: options,
