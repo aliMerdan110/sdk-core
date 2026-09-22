@@ -355,7 +355,6 @@ class MebablAuthService implements MebablAuthProvider {
       );
     }
 
-    return data['message']?.toString() ??
-        'Verification email has been sent.';
+    return data['message']?.toString() ?? 'Verification email has been sent.';
   }
 }

@@ -1,6 +1,6 @@
 name: mebabl_auth
 description: Authentication SDK package for Mebabl platform, built on top of mebabl_core.
-version: 1.0.8
+version: 1.0.9
 repository: https://github.com/aliMerdan110/mebabl_auth
 
 environment:
