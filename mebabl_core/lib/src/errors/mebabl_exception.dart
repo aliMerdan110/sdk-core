@@ -1,5 +1,3 @@
-// lib/src/errors/mebabl_exception.dart
-
 class MebablException implements Exception {
   final String message;
   final int? statusCode;
@@ -10,6 +8,18 @@ class MebablException implements Exception {
     this.statusCode,
     this.data,
   });
+
+  bool get isUnauthorized => statusCode == 401;
+
+  bool get isForbidden => statusCode == 403;
+
+  bool get isNotFound => statusCode == 404;
+
+  bool get isValidationError => statusCode == 400;
+
+  bool get isServerError => statusCode != null && statusCode! >= 500;
+
+  bool get isNetworkError => statusCode == null;
 
   @override
   String toString() {

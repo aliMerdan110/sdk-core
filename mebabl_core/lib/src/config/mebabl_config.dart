@@ -1,5 +1,3 @@
-// lib/src/config/mebabl_config.dart
-
 class MebablConfig {
   final String applicationId;
   final String platformId;
@@ -8,6 +6,7 @@ class MebablConfig {
   final String? bundleId;
   final String? domain;
   final String apiKey;
+  final String apiSecret;
   final String baseUrl;
 
   const MebablConfig({
@@ -15,6 +14,7 @@ class MebablConfig {
     required this.platformId,
     required this.platform,
     required this.apiKey,
+    required this.apiSecret,
     required this.baseUrl,
     this.packageName,
     this.bundleId,
@@ -48,7 +48,6 @@ class MebablConfig {
       }
 
       final result = value.trim();
-
       return result.isEmpty ? null : result;
     }
 
@@ -57,6 +56,7 @@ class MebablConfig {
       platformId: requiredString('platformId'),
       platform: requiredString('platform'),
       apiKey: requiredString('apiKey'),
+      apiSecret: requiredString('apiSecret'),
       baseUrl: requiredString('baseUrl'),
       packageName: optionalString('packageName'),
       bundleId: optionalString('bundleId'),
@@ -73,6 +73,7 @@ class MebablConfig {
       'bundleId': bundleId,
       'domain': domain,
       'apiKey': apiKey,
+      'apiSecret': apiSecret,
       'baseUrl': baseUrl,
     };
   }
@@ -85,6 +86,7 @@ class MebablConfig {
     String? bundleId,
     String? domain,
     String? apiKey,
+    String? apiSecret,
     String? baseUrl,
   }) {
     return MebablConfig(
@@ -95,6 +97,7 @@ class MebablConfig {
       bundleId: bundleId ?? this.bundleId,
       domain: domain ?? this.domain,
       apiKey: apiKey ?? this.apiKey,
+      apiSecret: apiSecret ?? this.apiSecret,
       baseUrl: baseUrl ?? this.baseUrl,
     );
   }
