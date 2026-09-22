@@ -32,6 +32,41 @@ class MebablHttpClient {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: _onRequest,
+        onResponse: (response, handler) {
+          print(
+            '[Mebabl HTTP] RESPONSE '
+            '${response.requestOptions.method} '
+            '${response.requestOptions.uri} '
+            '→ ${response.statusCode}',
+          );
+
+          print(
+            '[Mebabl HTTP] RESPONSE DATA '
+            '${response.data}',
+          );
+
+          handler.next(response);
+        },
+        onError: (error, handler) {
+          print(
+            '[Mebabl HTTP] ERROR '
+            '${error.requestOptions.method} '
+            '${error.requestOptions.uri} '
+            '→ ${error.response?.statusCode}',
+          );
+
+          print(
+            '[Mebabl HTTP] ERROR DATA '
+            '${error.response?.data}',
+          );
+
+          print(
+            '[Mebabl HTTP] ERROR MESSAGE '
+            '${error.message}',
+          );
+
+          handler.next(error);
+        },
       ),
     );
   }
@@ -58,7 +93,37 @@ class MebablHttpClient {
     options.headers['X-Api-Key'] = config.apiKey;
     options.headers['X-Platform-Id'] = config.platformId;
 
+    print(
+      '[Mebabl HTTP] REQUEST '
+      '${options.method} '
+      '${options.uri}',
+    );
+
+    print(
+      '[Mebabl HTTP] REQUEST HEADERS '
+      '${_safeHeaders(options.headers)}',
+    );
+
+    print(
+      '[Mebabl HTTP] REQUEST BODY '
+      '${options.data}',
+    );
+
     handler.next(options);
+  }
+
+  Map<String, dynamic> _safeHeaders(Map<String, dynamic> headers) {
+    final result = Map<String, dynamic>.from(headers);
+
+    if (result.containsKey('Authorization')) {
+      result['Authorization'] = 'Bearer ***';
+    }
+
+    if (result.containsKey('X-Api-Key')) {
+      result['X-Api-Key'] = '***';
+    }
+
+    return result;
   }
 
   Future<Response<T>> get<T>(
