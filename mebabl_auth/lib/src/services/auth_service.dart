@@ -17,6 +17,8 @@ class MebablAuthService implements MebablAuthProvider {
   MebablAuthService({
     required this.core,
   }) {
+    core.addApplicationAuthInterceptor();
+
     core.addAuthInterceptor(
       getValidAccessToken: getValidAccessToken,
     );
