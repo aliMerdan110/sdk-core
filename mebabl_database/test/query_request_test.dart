@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mebabl_database/mebabl_database.dart';
 
 void main() {
-  test('QueryRequest serializes correctly', () {
+  test('QueryRequest serializes supported query options', () {
     final request = QueryRequest(
       collectionId: 'collection-1',
       filters: [
@@ -18,7 +18,6 @@ void main() {
       offset: 10,
       limit: 25,
       search: 'product',
-      select: ['name', 'price'],
     );
 
     final json = request.toJson();
@@ -27,7 +26,7 @@ void main() {
     expect(json['offset'], 10);
     expect(json['limit'], 25);
     expect(json['search'], 'product');
-    expect(json['select'], ['name', 'price']);
+    expect(json['select'], isEmpty);
     expect(json['filters'], isA<List>());
     expect(json['sorts'], isA<List>());
   });
@@ -41,5 +40,21 @@ void main() {
     expect(request.sorts, isEmpty);
     expect(request.select, isEmpty);
     expect(request.search, isNull);
+    expect(request.pageToken, isNull);
+  });
+
+  test('QueryRequest rejects unsupported field projection', () {
+    const request = QueryRequest(
+      collectionId: 'collection-1',
+      select: ['name', 'price'],
+    );
+
+    expect(() => request.toJson(), throwsUnsupportedError);
+  });
+
+  test('QueryRequest enforces the backend page size limit', () {
+    const request = QueryRequest(collectionId: 'collection-1', limit: 101);
+
+    expect(() => request.toJson(), throwsArgumentError);
   });
 }

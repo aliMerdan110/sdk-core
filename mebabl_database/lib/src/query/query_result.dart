@@ -1,3 +1,7 @@
+/// A document returned by a Mebabl database query.
+///
+/// [version] is the optimistic-concurrency version. Pass it to document
+/// update/delete operations to prevent overwriting a newer document.
 class QueryResult {
   final String id;
   final String key;
@@ -17,37 +21,66 @@ class QueryResult {
 
   factory QueryResult.fromJson(Map<String, dynamic> json) {
     final rawData = json['data'];
+    if (rawData is! Map) {
+      throw const FormatException('Query result data must be a JSON object.');
+    }
 
-    final Map<String, dynamic> data;
+    final id = json['id'];
+    final key = json['key'];
+    final rawVersion = json['version'] ?? 1;
+    final rawCreatedAt = json['createdAt'];
+    final rawUpdatedAt = json['updatedAt'];
 
-    if (rawData is Map) {
-      data = Map<String, dynamic>.from(rawData);
-    } else if (rawData is String) {
-      throw FormatException('Query result data must be a JSON object.');
-    } else {
-      throw FormatException('Query result data must be a JSON object.');
+    if (id is! String || id.trim().isEmpty) {
+      throw const FormatException(
+        'Query result id must be a non-empty string.',
+      );
+    }
+    if (key is! String) {
+      throw const FormatException('Query result key must be a string.');
+    }
+    if (rawVersion is! int || rawVersion < 1) {
+      throw const FormatException(
+        'Query result version must be a positive integer.',
+      );
+    }
+    if (rawCreatedAt is! String) {
+      throw const FormatException(
+        'Query result createdAt must be an ISO-8601 string.',
+      );
+    }
+    if (rawUpdatedAt != null && rawUpdatedAt is! String) {
+      throw const FormatException(
+        'Query result updatedAt must be a string or null.',
+      );
     }
 
     return QueryResult(
-      id: json['id'] as String,
-      key: json['key'] as String,
-      data: data,
-      version: json['version'] as int? ?? 1,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: json['updatedAt'] == null
+      id: id,
+      key: key,
+      data: Map<String, dynamic>.from(rawData),
+      version: rawVersion,
+      createdAt: _parseDateTime(rawCreatedAt, 'createdAt'),
+      updatedAt: rawUpdatedAt == null
           ? null
-          : DateTime.parse(json['updatedAt'] as String),
+          : _parseDateTime(rawUpdatedAt as String, 'updatedAt'),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'key': key,
-      'data': data,
-      'version': version,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt?.toIso8601String(),
-    };
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'key': key,
+    'data': data,
+    'version': version,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
+  };
+
+  static DateTime _parseDateTime(String value, String field) {
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) {
+      throw FormatException('Query result $field is not a valid date.');
+    }
+    return parsed;
   }
 }

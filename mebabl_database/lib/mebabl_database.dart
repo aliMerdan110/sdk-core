@@ -9,14 +9,19 @@ export 'src/collections/collections_service.dart';
 
 export 'src/documents/document.dart';
 export 'src/documents/documents_service.dart';
+export 'src/documents/batch_write_document_operation.dart';
+export 'src/documents/batch_write_document_result.dart';
+export 'src/documents/batch_write_documents_response.dart';
 
 export 'src/query/query_filter.dart';
 export 'src/query/query_operator.dart';
 export 'src/query/query_request.dart';
 export 'src/query/query_result.dart';
+export 'src/query/query_page.dart';
 export 'src/query/query_service.dart';
 export 'src/query/query_sort.dart';
 
+/// Entry point for Mebabl's project-scoped database service.
 class MebablDatabaseService {
   final MebablCore core;
 
@@ -26,9 +31,7 @@ class MebablDatabaseService {
 
   MebablDatabaseService({required this.core}) {
     collections = CollectionsService(core: core);
-
     documents = DocumentsService(core: core);
-
     query = QueryService(core: core);
   }
 }
