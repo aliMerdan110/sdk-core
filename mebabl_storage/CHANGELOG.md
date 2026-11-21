@@ -1,10 +1,13 @@
-# Changelog
+## 1.1.2
 
-## 1.1.1 - 2026-09-20
+- Export the `StorageFile` compatibility type alias for uploaded-file metadata.
+- Make `createdAt` optional when constructing file metadata locally.
+- Keep `MebablStoredFile` as the canonical model name.
 
-- Initial release.
-- Upload binary files.
-- Get file URLs.
-- Download binary files.
-- Delete stored files.
-- Application-isolated storage
+## 1.0.0
+
+- Initial Project-scoped Storage SDK for Mebabl Platform Storage V2.
+- Upload files from paths or bytes, with progress and cancellation support.
+- List authorized objects, resolve content URLs, download or stream content, and delete files.
+- Support authenticated and anonymous reads as evaluated by published Storage Security Rules.
+- Keep provider keys and physical storage keys out of SDK models.
