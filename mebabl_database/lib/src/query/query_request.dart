@@ -1,10 +1,11 @@
+import '../collections/collections_service.dart';
 import 'query_filter.dart';
 import 'query_sort.dart';
 
-/// Query options for one collection in the authenticated Mebabl project.
+/// Query options for a collection addressed by its stable collection code.
 ///
-/// The project/application/user scope is derived by the backend from the
-/// authenticated token and must never be supplied by this request.
+/// Project, application, and user scope are derived from the authenticated
+/// token and are never accepted from this request.
 class QueryRequest {
   static const int defaultPageSize = 50;
   static const int maximumPageSize = 100;
@@ -14,22 +15,17 @@ class QueryRequest {
   static const int maximumSearchLength = 200;
   static const int maximumPageTokenLength = 4096;
 
-  final String collectionId;
+  final String collectionCode;
   final List<QueryFilter> filters;
   final List<QuerySort> sorts;
   final int offset;
   final int limit;
   final String? search;
-
-  /// Reserved by the API contract. Field projection is not enabled by the
-  /// current backend query response contract, so non-empty values are rejected.
   final List<String> select;
-
-  /// Opaque continuation cursor returned by [QueryPage.nextPageToken].
   final String? pageToken;
 
   const QueryRequest({
-    required this.collectionId,
+    required this.collectionCode,
     this.filters = const [],
     this.sorts = const [],
     this.offset = 0,
@@ -40,7 +36,7 @@ class QueryRequest {
   });
 
   QueryRequest copyWith({
-    String? collectionId,
+    String? collectionCode,
     List<QueryFilter>? filters,
     List<QuerySort>? sorts,
     int? offset,
@@ -51,7 +47,7 @@ class QueryRequest {
     bool clearPageToken = false,
   }) {
     return QueryRequest(
-      collectionId: collectionId ?? this.collectionId,
+      collectionCode: collectionCode ?? this.collectionCode,
       filters: filters ?? this.filters,
       sorts: sorts ?? this.sorts,
       offset: offset ?? this.offset,
@@ -62,14 +58,12 @@ class QueryRequest {
     );
   }
 
+  /// Serializes only query constraints; collectionCode is carried by the URL.
   Map<String, dynamic> toJson() {
     validate();
 
-    return {
-      'collectionId': collectionId.trim(),
-      'filters': filters
-          .map((filter) => filter.toJson())
-          .toList(growable: false),
+    return <String, dynamic>{
+      'filters': filters.map((filter) => filter.toJson()).toList(growable: false),
       'sorts': sorts.map((sort) => sort.toJson()).toList(growable: false),
       'offset': offset,
       'limit': limit,
@@ -79,10 +73,12 @@ class QueryRequest {
     };
   }
 
+  String get normalizedCollectionCode =>
+      CollectionsService.normalizeCollectionCode(collectionCode);
+
   void validate() {
-    if (collectionId.trim().isEmpty) {
-      throw ArgumentError('collectionId cannot be empty.');
-    }
+    normalizedCollectionCode;
+
     if (offset < 0 || offset > maximumOffset) {
       throw ArgumentError.value(
         offset,
@@ -98,19 +94,13 @@ class QueryRequest {
       );
     }
     if (filters.length > maximumFilters) {
-      throw ArgumentError(
-        'A query cannot contain more than $maximumFilters filters.',
-      );
+      throw ArgumentError('A query cannot contain more than $maximumFilters filters.');
     }
     if (sorts.length > maximumSorts) {
-      throw ArgumentError(
-        'A query cannot contain more than $maximumSorts sort fields.',
-      );
+      throw ArgumentError('A query cannot contain more than $maximumSorts sort fields.');
     }
     if (search != null && search!.trim().length > maximumSearchLength) {
-      throw ArgumentError(
-        'search cannot exceed $maximumSearchLength characters.',
-      );
+      throw ArgumentError('search cannot exceed $maximumSearchLength characters.');
     }
     if (select.isNotEmpty) {
       throw UnsupportedError(
@@ -122,18 +112,13 @@ class QueryRequest {
         throw ArgumentError('pageToken cannot be empty.');
       }
       if (pageToken!.length > maximumPageTokenLength) {
-        throw ArgumentError(
-          'pageToken cannot exceed $maximumPageTokenLength characters.',
-        );
+        throw ArgumentError('pageToken cannot exceed $maximumPageTokenLength characters.');
       }
       if (offset != 0 || sorts.isNotEmpty) {
-        throw ArgumentError(
-          'pageToken requires offset=0 and the default sort.',
-        );
+        throw ArgumentError('pageToken requires offset=0 and the default sort.');
       }
     }
 
-    // Validate every nested value before the request reaches Dio.
     for (final filter in filters) {
       filter.validate();
     }

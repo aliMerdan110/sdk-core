@@ -1,30 +1,25 @@
 # Mebabl Database
 
-**Mebabl Database Flutter SDK** provides a project-scoped database service for Flutter applications built with the Mebabl Platform.
+`mebabl_database` is the Flutter SDK for the project-scoped, document-oriented database in Mebabl Platform.
 
-It provides a simple and consistent API for managing collections, documents, queries, pagination, and atomic batch writes.
+Collections are addressed by a stable code such as `user_profiles`. The backend keeps Collection GUIDs internal and materializes a collection automatically as part of the first successful document write. Applications in the same Project share the Project Database, subject to the published Database Security Rules.
 
 ## Features
 
-- Project-scoped database architecture.
-- Collections management.
-- Documents CRUD operations.
-- JSON document storage.
-- Optimistic concurrency using document versions.
-- Query filters and sorting.
-- Cursor-based pagination.
-- Offset pagination for custom sorting.
-- Atomic Batch Writes.
-- Integration with Mebabl Core authentication.
-- Server-side security policy enforcement.
+- Project-wide collections addressed by stable collection codes.
+- Automatic collection materialization on the first successful write.
+- JSON document storage and CRUD operations.
+- Optimistic concurrency through document ETags and `If-Match`.
+- Query filters, sorting, search, and cursor pagination.
+- Atomic batch writes.
+- Mebabl Core authentication integration.
+- Server-side enforcement of published Database Security Rules.
 
 ## Installation
 
-Add `mebabl_database` to your `pubspec.yaml`:
-
 ```yaml
 dependencies:
-  mebabl_database: ^1.0.5
+  mebabl_database: ^1.1.0
   mebabl_core: ^1.2.0
 ```
 
@@ -39,12 +34,12 @@ flutter pub get
 - Flutter 3.32.0 or later.
 - Dart 3.8.1 or later.
 - `mebabl_core`.
-- A configured Mebabl project and application.
-- An authenticated application user for user-facing database operations.
+- A configured Mebabl Project and Application.
+- An authenticated Application User for SDK database operations.
 
 ## Initialization
 
-Initialize Mebabl Core before creating the database service.
+Initialize Mebabl Core before creating the Database service.
 
 ```dart
 import 'package:flutter/widgets.dart';
@@ -53,7 +48,6 @@ import 'package:mebabl_database/mebabl_database.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await MebablCore.initialize();
 
   final database = MebablDatabaseService(
@@ -66,64 +60,36 @@ Future<void> main() async {
 
 ## Collections
 
-Collections are project-owned database resources. Applications registered within the same project share these resources, subject to database security policies.
-
-### Create a collection
-
-```dart
-final collection = await database.collections.create(
-  name: 'products',
-  description: 'Product catalog',
-);
-```
-
-### List collections
+A collection is identified by its code, not by an internal GUID. Do not create collections manually in the SDK.
 
 ```dart
 final collections = await database.collections.list();
 
 for (final collection in collections) {
-  print(collection.name);
+  print('${collection.code}: ${collection.name}');
 }
 ```
 
-### Get a collection
+The SDK catalog returns materialized collections discoverable under the caller's published rules. A collection with owner-only access may be addressed by its known code but is not exposed in the global catalog.
 
-```dart
-final collection = await database.collections.get(
-  collectionId: collectionId,
-);
-```
+A collection can be configured in Developer Console before the first document exists:
 
-### Update a collection
+1. Define the collection code and its Database Security Rules in the Project Console.
+2. Validate and publish the policy.
+3. Write the first document from an Application.
+4. The backend creates the internal collection record and persists the first document in the same transaction.
 
-```dart
-final collection = await database.collections.update(
-  collectionId: collectionId,
-  name: 'products',
-  description: 'Updated product catalog',
-);
-```
-
-### Delete a collection
-
-```dart
-await database.collections.delete(
-  collectionId: collectionId,
-);
-```
+A draft policy does not grant SDK access. A missing or unpublished policy fails closed.
 
 ## Documents
 
-Documents contain JSON objects and are stored inside collections.
+Documents are JSON objects stored inside a collection. Each document has a backend-generated identifier, a caller-selected key, a version, and timestamps.
 
-Every document has a unique identifier, key, data, version, and timestamps.
-
-### Create a document
+### Create
 
 ```dart
 final document = await database.documents.create(
-  collectionId: collection.id,
+  collectionCode: 'products',
   key: 'product-001',
   data: {
     'name': 'Product One',
@@ -136,32 +102,40 @@ print(document.id);
 print(document.version);
 ```
 
-### Get a document
+If `products` has a published policy allowing `create`, the backend materializes the collection automatically on this first successful write.
+
+### Get
 
 ```dart
 final document = await database.documents.get(
-  collectionId: collection.id,
+  collectionCode: 'products',
   documentId: documentId,
 );
+
+print(document.data);
 ```
 
-### List documents
+### List
 
 ```dart
 final documents = await database.documents.list(
-  collectionId: collection.id,
+  collectionCode: 'products',
 );
+
+for (final document in documents) {
+  print(document.key);
+}
 ```
 
-For large collections, use Query and pagination instead of loading all documents.
+Listing requires a published `list` grant. For large collections, use Query pagination instead of loading all documents.
 
-### Update a document
+### Update
 
-Updates require the current document version to prevent overwriting newer data.
+Updates require the current document version to prevent overwriting a newer version.
 
 ```dart
 await database.documents.update(
-  collectionId: collection.id,
+  collectionCode: 'products',
   documentId: document.id,
   key: document.key,
   data: {
@@ -173,27 +147,27 @@ await database.documents.update(
 );
 ```
 
-### Delete a document
+The SDK sends the expected version as a strong ETag in `If-Match`. A successful update advances the document version.
+
+### Delete
 
 ```dart
 await database.documents.delete(
-  collectionId: collection.id,
+  collectionCode: 'products',
   documentId: document.id,
   expectedVersion: document.version,
 );
 ```
 
-Document deletion is performed as a soft delete.
+Document deletion is a soft delete and requires the current version.
 
 ## Query Engine
 
-The Query service supports filtering, sorting, search, and pagination.
-
-### Query filters
+Queries are addressed by collection code. The code is carried in the route; the JSON request contains only query constraints.
 
 ```dart
 final request = QueryRequest(
-  collectionId: collection.id,
+  collectionCode: 'products',
   filters: [
     QueryFilter(
       field: 'active',
@@ -228,49 +202,35 @@ for (final document in page.items) {
 - `startsWith`
 - `endsWith`
 
-### Sorting
+### Sorting and search
 
 ```dart
 final request = QueryRequest(
-  collectionId: collection.id,
+  collectionCode: 'products',
   sorts: [
     QuerySort(
       field: 'createdAt',
       direction: QuerySortDirection.desc,
     ),
   ],
-);
-```
-
-Supported fields include `createdAt`, `updatedAt`, `key`, and `version`.
-
-### Search
-
-```dart
-final request = QueryRequest(
-  collectionId: collection.id,
   search: 'product',
   limit: 25,
 );
 ```
 
-The current backend search targets document keys.
+Search currently targets document keys. Supported sort fields include `createdAt`, `updatedAt`, `key`, and `version`.
 
 ## Pagination
 
-The Query API supports cursor pagination using an opaque page token.
+The default ordering supports cursor pagination using an opaque page token. Custom sorts use the backend's offset continuation path.
 
 ```dart
 final request = QueryRequest(
-  collectionId: collection.id,
+  collectionCode: 'products',
   limit: 25,
 );
 
 final firstPage = await database.query.execute(request);
-
-for (final document in firstPage.items) {
-  print(document.key);
-}
 
 if (firstPage.hasMore) {
   final nextPage = await database.query.executeNext(
@@ -284,29 +244,15 @@ if (firstPage.hasMore) {
 }
 ```
 
-The `QueryPage` response provides:
-
-- `items`
-- `hasMore`
-- `nextPageToken`
-- `nextOffset`
-- `collectionId`
-
-The SDK uses cursor pagination with the default ordering. Custom sorting currently uses offset pagination.
-
-The maximum page size is 100 documents.
+`QueryPage` exposes `collectionCode`, `items`, `hasMore`, `nextPageToken`, and `nextOffset`. The maximum page size is 100 documents.
 
 ## Batch Writes
 
-Batch Writes execute multiple document mutations as one atomic operation.
-
-The server commits all operations together or rolls back the entire transaction if any operation fails.
-
-### Create, update, and delete in one batch
+Batch writes execute multiple document mutations atomically. The backend commits all operations together or rolls back the transaction if any operation fails.
 
 ```dart
 final result = await database.documents.batchWrite(
-  collectionId: collection.id,
+  collectionCode: 'products',
   operations: [
     BatchWriteDocumentOperation.create(
       key: 'product-003',
@@ -315,7 +261,6 @@ final result = await database.documents.batchWrite(
         'price': 300,
       },
     ),
-
     BatchWriteDocumentOperation.update(
       documentId: existingDocument.id,
       key: existingDocument.key,
@@ -325,24 +270,14 @@ final result = await database.documents.batchWrite(
       },
       expectedVersion: existingDocument.version,
     ),
-
     BatchWriteDocumentOperation.delete(
       documentId: oldDocument.id,
       expectedVersion: oldDocument.version,
     ),
   ],
 );
-```
 
-### Read batch results
-
-```dart
-for (final operation in result.results) {
-  print('Document ID: ${operation.documentId}');
-  print('Version: ${operation.version}');
-  print('Operation: ${operation.type}');
-  print('Deleted: ${operation.isDeleted}');
-}
+print(result.collectionCode);
 ```
 
 Batch limitations:
@@ -350,33 +285,30 @@ Batch limitations:
 - Maximum 500 operations.
 - Maximum aggregate JSON payload of 1 MiB.
 - A document can only be targeted once per batch.
-- Every update and delete requires an expected version.
-- Results are returned only after successful transaction commit.
+- Each update and delete requires an expected version.
+- Results are returned only after transaction commit.
 
 ## Security and Project Isolation
 
-Mebabl Database follows a project-scoped architecture.
-
 - `ProjectId` defines the database ownership and isolation boundary.
-- Applications within the same project share project database resources.
-- Application identity authenticates the calling application.
+- Applications registered in the same Project share Project Database collections.
+- Application identity authenticates the calling Application.
 - User identity identifies the authenticated end user.
-- Collection security policies determine permitted database operations.
+- Collection security policies determine permitted reads, queries, creates, updates, and deletes.
+- A policy must be saved, validated, and published before it grants SDK access.
+- Collection creation does not imply access; all operations are checked by the backend.
+- Social, Chat, Media, Storage, and other platform services retain their own service-owned data models and do not duplicate their records in the generic Database.
 
-Database access is enforced by the backend. The SDK does not provide a mechanism to bypass security policies.
-
-Collections without an active published security policy remain inaccessible to end users.
+The SDK never accepts a Collection GUID. It sends the stable collection code, and the backend resolves the internal Collection identifier using the authenticated Project context.
 
 ## Error Handling
 
-Database operations can fail due to authentication, authorization, validation, concurrency conflicts, or network errors.
-
-Handle errors using normal Dart exception handling:
+Database operations can fail because of authentication, authorization, validation, concurrency conflicts, or network errors.
 
 ```dart
 try {
   final document = await database.documents.get(
-    collectionId: collection.id,
+    collectionCode: 'products',
     documentId: documentId,
   );
 
@@ -388,13 +320,11 @@ try {
 
 ## Related Packages
 
-- `mebabl_core` — Core SDK infrastructure and application authentication.
+- `mebabl_core` — Core SDK infrastructure and Application authentication.
 - `mebabl_auth` — User authentication services.
-- `mebabl_database` — Project-scoped database services.
+- `mebabl_database` — Project-scoped Database services.
 
 ## Repository
-
-Source code and issue tracking:
 
 [https://github.com/aliMerdan110/Mebabl.Sdk](https://github.com/aliMerdan110/Mebabl.Sdk)
 

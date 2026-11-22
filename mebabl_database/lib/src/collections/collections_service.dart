@@ -2,130 +2,87 @@ import 'package:mebabl_core/mebabl_core.dart';
 
 import 'collection.dart';
 
-/// Accesses collections in the authenticated application's Mebabl project.
+/// Discovers collections visible to the authenticated user in the project.
 ///
-/// Collection ownership is project-scoped. Applications registered under the
-/// same project share its collections; the authenticated application is used
-/// only to establish the caller's identity and permissions.
+/// Collections are project-scoped and are materialized by the backend after
+/// the first successful document write. SDK clients never create or address
+/// collections using internal GUIDs.
 class CollectionsService {
-  static const String _basePath = '/api/sdk/data/collections';
-  static const int _maximumNameLength = 100;
-  static const int _maximumDescriptionLength = 500;
-
-  static final RegExp _controlCharacters = RegExp(r'[\x00-\x1F\x7F]');
+  static const String _catalogPath = '/api/sdk/data/collections/by-code';
 
   final MebablCore core;
 
   CollectionsService({required this.core});
 
-  /// Creates a collection in the authenticated project.
+  /// Lists materialized collections visible under the active Database Rules.
   ///
-  /// Project and application identifiers are intentionally omitted from the
-  /// payload. The backend derives the project from the authenticated token.
-  Future<Collection> create({required String name, String? description}) async {
-    final payload = <String, dynamic>{
-      'name': _normalizeName(name),
-      'description': _normalizeDescription(description),
-    };
-
-    final response = await core.http.post(_basePath, data: payload);
-    return Collection.fromJson(_readObject(response.data, 'create collection'));
-  }
-
-  /// Gets a collection only if it belongs to the authenticated project.
-  Future<Collection> get({required String collectionId}) async {
-    final id = _normalizeId(collectionId, 'collectionId');
-    final response = await core.http.get('$_basePath/$id');
-
-    return Collection.fromJson(_readObject(response.data, 'get collection'));
-  }
-
-  /// Lists collections visible to the authenticated user in the project.
-  ///
-  /// The returned list is unmodifiable so callers cannot alter the collection
-  /// snapshot held by the SDK service.
+  /// A collection must have a published policy that grants collection
+  /// discovery to the current user. Owner-only collections are intentionally
+  /// not enumerated by this project-wide catalog endpoint.
   Future<List<Collection>> list() async {
-    final response = await core.http.get(_basePath);
-    final raw = response.data;
+    final response = await core.http.get(
+      _catalogPath,
+      authMode: MebablAuthMode.user,
+    );
 
+    final raw = response.data;
     if (raw is! List) {
       throw const FormatException('Collections response must be a JSON array.');
     }
 
     final collections = raw
-        .map(
-          (item) =>
-              Collection.fromJson(_readObject(item, 'collection list item')),
-        )
+        .map((item) => Collection.fromJson(_readObject(item, 'collection item')))
         .toList(growable: false);
+
+    final seenCodes = <String>{};
+    for (final collection in collections) {
+      final normalized = normalizeCollectionCode(collection.code);
+      if (!seenCodes.add(normalized)) {
+        throw FormatException(
+          'Collections response contains duplicate code "$normalized".',
+        );
+      }
+    }
 
     return List<Collection>.unmodifiable(collections);
   }
 
-  /// Updates collection metadata in the authenticated project.
+  /// Gets a materialized collection by its stable code when the current user
+  /// is allowed to discover it through the published collection rules.
   ///
-  /// The backend derives ownership from the authenticated context; this
-  /// request never sends a project or application identifier.
-  Future<Collection> update({
-    required String collectionId,
-    required String name,
-    String? description,
-  }) async {
-    final id = _normalizeId(collectionId, 'collectionId');
-    final payload = <String, dynamic>{
-      'name': _normalizeName(name),
-      'description': _normalizeDescription(description),
-    };
+  /// Owner-only collections are intentionally omitted from the global
+  /// catalog; use their known [code] directly with documents or query APIs.
+  Future<Collection> get({required String code}) async {
+    final normalizedCode = normalizeCollectionCode(code);
+    final collections = await list();
 
-    final response = await core.http.put('$_basePath/$id', data: payload);
-    return Collection.fromJson(_readObject(response.data, 'update collection'));
+    for (final collection in collections) {
+      if (normalizeCollectionCode(collection.code) == normalizedCode) {
+        return collection;
+      }
+    }
+
+    throw StateError(
+      'Collection "$normalizedCode" was not found in the visible project catalog.',
+    );
   }
 
-  /// Deletes a collection belonging to the authenticated project.
-  Future<void> delete({required String collectionId}) async {
-    final id = _normalizeId(collectionId, 'collectionId');
-    await core.http.delete('$_basePath/$id');
-  }
-
-  static String _normalizeId(String value, String parameterName) {
-    final id = value.trim();
-    if (id.isEmpty || _controlCharacters.hasMatch(id)) {
+  /// Validates and normalizes a public collection code.
+  ///
+  /// Codes are case-insensitive, start with a letter or number, and contain
+  /// only letters, numbers, and underscores.
+  static String normalizeCollectionCode(String value) {
+    final code = value.trim().toLowerCase();
+    if (code.isEmpty ||
+        code.length > 100 ||
+        !RegExp(r'^[a-z0-9][a-z0-9_]*$').hasMatch(code)) {
       throw ArgumentError.value(
         value,
-        parameterName,
-        'Must not be empty or contain control characters.',
+        'code',
+        'Must start with a letter or number and contain only letters, numbers, or underscores (maximum 100 characters).',
       );
     }
-    return id;
-  }
-
-  static String _normalizeName(String value) {
-    final name = value.trim();
-    if (name.isEmpty) {
-      throw ArgumentError.value(value, 'name', 'Cannot be empty.');
-    }
-    if (name.length > _maximumNameLength || _controlCharacters.hasMatch(name)) {
-      throw ArgumentError.value(
-        value,
-        'name',
-        'Must not exceed $_maximumNameLength characters or contain control characters.',
-      );
-    }
-    return name;
-  }
-
-  static String? _normalizeDescription(String? value) {
-    final description = value?.trim();
-    if (description != null &&
-        (description.length > _maximumDescriptionLength ||
-            _controlCharacters.hasMatch(description))) {
-      throw ArgumentError.value(
-        value,
-        'description',
-        'Must not exceed $_maximumDescriptionLength characters or contain control characters.',
-      );
-    }
-    return description;
+    return code;
   }
 
   static Map<String, dynamic> _readObject(Object? value, String context) {
@@ -136,9 +93,7 @@ class CollectionsService {
     try {
       return Map<String, dynamic>.from(value);
     } on TypeError {
-      throw FormatException(
-        '$context response must use string property names.',
-      );
+      throw FormatException('$context response must use string property names.');
     }
   }
 }

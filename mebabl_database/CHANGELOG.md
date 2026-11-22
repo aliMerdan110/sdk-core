@@ -1,3 +1,19 @@
+## 1.1.0
+
+- Replaced public Collection GUID usage with stable Collection Codes.
+- Removed manual Collection creation from the SDK. The backend materializes a collection on the first successful write.
+- Moved document CRUD, query, and batch operations to the code-addressed API.
+- Standardized document updates and deletes on ETag / If-Match optimistic concurrency.
+- Updated collection catalog and query page models to return collectionCode without collection identifiers.
+- Added tests for the code-first collection and query response contracts.
+
+## 1.0.8
+
+
+
+## 1.0.7
+
+
 ## 1.0.6
 
 Updated database architecture to support project-scoped collections and documents.

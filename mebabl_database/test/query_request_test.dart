@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mebabl_database/mebabl_database.dart';
 
 void main() {
-  test('QueryRequest serializes supported query options', () {
+  test('QueryRequest serializes query constraints without collection identity', () {
     final request = QueryRequest(
-      collectionId: 'collection-1',
+      collectionCode: 'products',
       filters: [
         QueryFilter(
           field: 'category',
@@ -22,17 +22,19 @@ void main() {
 
     final json = request.toJson();
 
-    expect(json['collectionId'], 'collection-1');
+    expect(json.containsKey('collectionId'), isFalse);
+    expect(json.containsKey('collectionCode'), isFalse);
     expect(json['offset'], 10);
     expect(json['limit'], 25);
     expect(json['search'], 'product');
     expect(json['select'], isEmpty);
     expect(json['filters'], isA<List>());
     expect(json['sorts'], isA<List>());
+    expect(request.normalizedCollectionCode, 'products');
   });
 
   test('QueryRequest has correct defaults', () {
-    const request = QueryRequest(collectionId: 'collection-1');
+    const request = QueryRequest(collectionCode: 'products');
 
     expect(request.offset, 0);
     expect(request.limit, 50);
@@ -45,7 +47,7 @@ void main() {
 
   test('QueryRequest rejects unsupported field projection', () {
     const request = QueryRequest(
-      collectionId: 'collection-1',
+      collectionCode: 'products',
       select: ['name', 'price'],
     );
 
@@ -53,7 +55,13 @@ void main() {
   });
 
   test('QueryRequest enforces the backend page size limit', () {
-    const request = QueryRequest(collectionId: 'collection-1', limit: 101);
+    const request = QueryRequest(collectionCode: 'products', limit: 101);
+
+    expect(() => request.toJson(), throwsArgumentError);
+  });
+
+  test('QueryRequest rejects collection codes with GUID-style separators', () {
+    const request = QueryRequest(collectionCode: 'products-collection');
 
     expect(() => request.toJson(), throwsArgumentError);
   });

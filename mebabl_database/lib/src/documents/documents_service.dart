@@ -2,17 +2,17 @@ import 'dart:convert';
 
 import 'package:mebabl_core/mebabl_core.dart';
 
+import '../collections/collections_service.dart';
 import 'batch_write_document_operation.dart';
 import 'batch_write_documents_response.dart';
 import 'document.dart';
 
-/// Accesses documents stored in a project-owned collection.
+/// Accesses documents in project-scoped collections using stable collection
+/// codes. Internal Collection GUIDs are never exposed to SDK callers.
 ///
-/// All operations are scoped by the authenticated project on the server.
-/// [Document.version] is required for updates and deletes to prevent stale
-/// clients from overwriting or removing newer data.
+/// Updates and deletes require the current document version and send it as a
+/// strong ETag through `If-Match`.
 class DocumentsService {
-  static const String _collectionsPath = '/api/sdk/data/collections';
   static const int _maximumKeyLength = 200;
   static const int maximumBatchOperations = 500;
   static const int maximumBatchPayloadBytes = 1024 * 1024;
@@ -21,48 +21,53 @@ class DocumentsService {
 
   DocumentsService({required this.core});
 
+  String _collectionPath(String collectionCode) {
+    final code = CollectionsService.normalizeCollectionCode(collectionCode);
+    return '/api/sdk/data/collections/by-code/${Uri.encodeComponent(code)}';
+  }
+
   /// Creates a document with a caller-selected key.
   Future<Document> create({
-    required String collectionId,
+    required String collectionCode,
     required String key,
     required Map<String, dynamic> data,
   }) async {
-    final collection = _normalizeId(collectionId, 'collectionId');
+    final path = _collectionPath(collectionCode);
     final normalizedKey = _normalizeKey(key);
     _validateData(data);
 
     final response = await core.http.post(
-      '$_collectionsPath/$collection/documents',
+      '$path/documents',
       data: <String, dynamic>{'key': normalizedKey, 'data': data},
+      authMode: MebablAuthMode.user,
     );
 
     return Document.fromJson(_readObject(response.data, 'create document'));
   }
 
-  /// Gets a document by ID inside the specified collection.
+  /// Gets a document by its backend document ID within a collection code.
   Future<Document> get({
-    required String collectionId,
+    required String collectionCode,
     required String documentId,
   }) async {
-    final collection = _normalizeId(collectionId, 'collectionId');
+    final path = _collectionPath(collectionCode);
     final document = _normalizeId(documentId, 'documentId');
 
     final response = await core.http.get(
-      '$_collectionsPath/$collection/documents/$document',
+      '$path/documents/${Uri.encodeComponent(document)}',
+      authMode: MebablAuthMode.user,
     );
 
     return Document.fromJson(_readObject(response.data, 'get document'));
   }
 
-  /// Lists documents in one collection.
-  ///
-  /// For large collections, prefer [QueryService] and its cursor pagination
-  /// rather than loading the entire collection into memory.
-  Future<List<Document>> list({required String collectionId}) async {
-    final collection = _normalizeId(collectionId, 'collectionId');
+  /// Lists documents in a collection allowed by the published `list` rule.
+  Future<List<Document>> list({required String collectionCode}) async {
+    final path = _collectionPath(collectionCode);
 
     final response = await core.http.get(
-      '$_collectionsPath/$collection/documents',
+      '$path/documents',
+      authMode: MebablAuthMode.user,
     );
     final raw = response.data;
 
@@ -77,70 +82,62 @@ class DocumentsService {
     );
   }
 
-  /// Replaces a document using optimistic concurrency.
-  ///
-  /// The request succeeds only when [expectedVersion] equals the current
-  /// document version. A successful update increments the server version.
-  /// The backend returns HTTP 204, so this method does not return a document.
+  /// Replaces a document only when [expectedVersion] matches its current
+  /// version. A successful update increments the server version.
   Future<void> update({
-    required String collectionId,
+    required String collectionCode,
     required String documentId,
     required String key,
     required Map<String, dynamic> data,
     required int expectedVersion,
   }) async {
-    final collection = _normalizeId(collectionId, 'collectionId');
+    final path = _collectionPath(collectionCode);
     final document = _normalizeId(documentId, 'documentId');
     final normalizedKey = _normalizeKey(key);
     _validateData(data);
     _validateExpectedVersion(expectedVersion);
 
     await core.http.put(
-      '$_collectionsPath/$collection/documents/$document',
-      data: <String, dynamic>{
-        'key': normalizedKey,
-        'data': data,
-        'expectedVersion': expectedVersion,
-      },
+      '$path/documents/${Uri.encodeComponent(document)}',
+      data: <String, dynamic>{'key': normalizedKey, 'data': data},
+      headers: <String, dynamic>{'If-Match': '"$expectedVersion"'},
+      authMode: MebablAuthMode.user,
     );
   }
 
-  /// Soft-deletes a document only when its version still matches.
+  /// Soft-deletes a document only when [expectedVersion] still matches.
   Future<void> delete({
-    required String collectionId,
+    required String collectionCode,
     required String documentId,
     required int expectedVersion,
   }) async {
-    final collection = _normalizeId(collectionId, 'collectionId');
+    final path = _collectionPath(collectionCode);
     final document = _normalizeId(documentId, 'documentId');
     _validateExpectedVersion(expectedVersion);
 
     await core.http.delete(
-      '$_collectionsPath/$collection/documents/$document',
-      queryParameters: <String, dynamic>{'expectedVersion': expectedVersion},
+      '$path/documents/${Uri.encodeComponent(document)}',
+      headers: <String, dynamic>{'If-Match': '"$expectedVersion"'},
+      authMode: MebablAuthMode.user,
     );
   }
 
-  /// Executes create, update, and delete mutations as one atomic batch.
-  ///
-  /// The server commits all operations or rolls back all of them. If any
-  /// operation fails validation, authorization, concurrency checks, or a
-  /// database constraint, the returned Future fails and no partial result is
-  /// returned. A batch is limited to 500 operations and 1 MiB of JSON data.
+  /// Executes create, update, and delete operations as one atomic batch.
   Future<BatchWriteDocumentsResponse> batchWrite({
-    required String collectionId,
+    required String collectionCode,
     required List<BatchWriteDocumentOperation> operations,
   }) async {
-    final collection = _normalizeId(collectionId, 'collectionId');
+    final path = _collectionPath(collectionCode);
     _validateBatch(operations);
 
     final response = await core.http.post(
-      '$_collectionsPath/$collection/documents/batch',
+      '$path/documents/batch',
       data: <String, dynamic>{
         'operations': operations
             .map((operation) => operation.toJson())
-            .toList(),
+            .toList(growable: false),
       },
+      authMode: MebablAuthMode.user,
     );
 
     return BatchWriteDocumentsResponse.fromJson(
@@ -161,8 +158,7 @@ class DocumentsService {
     final desiredKeys = <String>{};
     var payloadBytes = 0;
 
-    for (var index = 0; index < operations.length; index++) {
-      final operation = operations[index];
+    for (final operation in operations) {
       final json = operation.toJson();
 
       final documentId = json['documentId'];
@@ -191,8 +187,12 @@ class DocumentsService {
 
   static String _normalizeId(String value, String parameterName) {
     final id = value.trim();
-    if (id.isEmpty) {
-      throw ArgumentError.value(value, parameterName, 'Cannot be empty.');
+    if (id.isEmpty || id.contains(RegExp(r'[\x00-\x1F\x7F]'))) {
+      throw ArgumentError.value(
+        value,
+        parameterName,
+        'Must not be empty or contain control characters.',
+      );
     }
     return id;
   }

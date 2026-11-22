@@ -1,26 +1,22 @@
 import 'query_result.dart';
 
-/// A single page returned by the Mebabl query endpoint.
-///
-/// For the default sort (`createdAt DESC, id DESC`), [nextPageToken] contains
-/// an opaque keyset cursor. For custom sorts, the backend currently returns
-/// [nextOffset] and uses offset pagination for compatibility.
+/// A single page returned by a code-addressed Mebabl collection query.
 class QueryPage {
-  final String collectionId;
+  final String collectionCode;
   final List<QueryResult> items;
   final bool hasMore;
   final String? nextPageToken;
   final int? nextOffset;
 
   QueryPage({
-    required this.collectionId,
+    required this.collectionCode,
     required List<QueryResult> items,
     required this.hasMore,
     required this.nextPageToken,
     required this.nextOffset,
   }) : items = List.unmodifiable(items) {
-    if (collectionId.trim().isEmpty) {
-      throw ArgumentError.value(collectionId, 'collectionId');
+    if (collectionCode.trim().isEmpty) {
+      throw ArgumentError.value(collectionCode, 'collectionCode');
     }
     if (nextPageToken != null && nextOffset != null) {
       throw const FormatException(
@@ -38,14 +34,14 @@ class QueryPage {
   }
 
   factory QueryPage.fromJson(Map<String, dynamic> json) {
-    final rawCollectionId = json['collectionId'];
+    final rawCollectionCode = json['collectionCode'];
     final rawItems = json['items'];
     final rawHasMore = json['hasMore'];
     final rawToken = json['nextPageToken'];
     final rawNextOffset = json['nextOffset'];
 
-    if (rawCollectionId is! String || rawCollectionId.trim().isEmpty) {
-      throw const FormatException('Query page collectionId is invalid.');
+    if (rawCollectionCode is! String || rawCollectionCode.trim().isEmpty) {
+      throw const FormatException('Query page collectionCode is invalid.');
     }
     if (rawItems is! List) {
       throw const FormatException('Query page items must be a JSON array.');
@@ -54,29 +50,21 @@ class QueryPage {
       throw const FormatException('Query page hasMore must be a boolean.');
     }
     if (rawToken != null && rawToken is! String) {
-      throw const FormatException(
-        'Query page nextPageToken must be a string or null.',
-      );
+      throw const FormatException('Query page nextPageToken must be a string or null.');
     }
     if (rawNextOffset != null && rawNextOffset is! int) {
-      throw const FormatException(
-        'Query page nextOffset must be an integer or null.',
-      );
+      throw const FormatException('Query page nextOffset must be an integer or null.');
     }
 
-    final parsedItems = rawItems
-        .map((item) {
-          if (item is! Map) {
-            throw const FormatException(
-              'Every query page item must be a JSON object.',
-            );
-          }
-          return QueryResult.fromJson(Map<String, dynamic>.from(item));
-        })
-        .toList(growable: false);
+    final parsedItems = rawItems.map((item) {
+      if (item is! Map) {
+        throw const FormatException('Every query page item must be a JSON object.');
+      }
+      return QueryResult.fromJson(Map<String, dynamic>.from(item));
+    }).toList(growable: false);
 
     return QueryPage(
-      collectionId: rawCollectionId,
+      collectionCode: rawCollectionCode,
       items: parsedItems,
       hasMore: rawHasMore,
       nextPageToken: rawToken as String?,
@@ -86,21 +74,17 @@ class QueryPage {
 
   /// Converts an older array-only response into a terminal page.
   factory QueryPage.fromLegacyList({
-    required String collectionId,
+    required String collectionCode,
     required List<dynamic> items,
   }) {
     return QueryPage(
-      collectionId: collectionId,
-      items: items
-          .map((item) {
-            if (item is! Map) {
-              throw const FormatException(
-                'Every query result must be a JSON object.',
-              );
-            }
-            return QueryResult.fromJson(Map<String, dynamic>.from(item));
-          })
-          .toList(growable: false),
+      collectionCode: collectionCode,
+      items: items.map((item) {
+        if (item is! Map) {
+          throw const FormatException('Every query result must be a JSON object.');
+        }
+        return QueryResult.fromJson(Map<String, dynamic>.from(item));
+      }).toList(growable: false),
       hasMore: false,
       nextPageToken: null,
       nextOffset: null,
