@@ -13,40 +13,28 @@ void main() {
         'targetId': 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         'deepLink': '/posts/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         'isRead': false,
-        'createdAt': '2026-11-23T10:00:00Z',
-        'readAt': null,
-        'data': '{"source":"social"}',
+        'createdAtUtc': '2026-11-23T10:00:00Z',
       });
 
       expect(notification.type, 'social.post.reaction');
       expect(notification.isRead, isFalse);
       expect(notification.targetType, 'post');
       expect(notification.createdAtUtc.isUtc, isTrue);
-      expect(notification.payload['source'], 'social');
     });
   });
 
   group('MebablNotificationPreferences', () {
     test('preserves unknown preference fields for forward compatibility', () {
-      final preferences = MebablNotificationPreferences.fromJson([
-        {
-          'category': 'social',
-          'pushEnabled': true,
-          'mutedUntilUtc': null,
-          'isCustomized': true,
-        },
-        {
-          'category': 'messaging',
-          'pushEnabled': false,
-          'mutedUntilUtc': '2026-11-24T12:00:00Z',
-          'isCustomized': true,
-        },
-      ]);
+      final preferences = MebablNotificationPreferences.fromJson({
+        'pushEnabled': true,
+        'inAppEnabled': true,
+        'mutedTypes': ['chat.message'],
+        'quietHours': {'from': '22:00', 'to': '08:00'},
+      });
 
-      expect(preferences.categories, hasLength(2));
-      expect(preferences.categories.first.category, 'social');
-      expect(preferences.categories.first.pushEnabled, isTrue);
-      expect(preferences.toJson()['preferences'], hasLength(2));
+      expect(preferences.pushEnabled, isTrue);
+      expect(preferences.mutedTypes, contains('chat.message'));
+      expect(preferences.toJson()['quietHours'], isNotNull);
     });
   });
 

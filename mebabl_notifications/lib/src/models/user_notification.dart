@@ -13,7 +13,6 @@ class MebablUserNotification {
   final String type;
   final String? title;
   final String? message;
-  final String? userId;
   final String? actorUserId;
   final String? targetType;
   final String? targetId;
@@ -30,7 +29,6 @@ class MebablUserNotification {
     required this.type,
     this.title,
     this.message,
-    this.userId,
     this.actorUserId,
     this.targetType,
     this.targetId,
@@ -45,21 +43,33 @@ class MebablUserNotification {
 
   factory MebablUserNotification.fromJson(Map<String, dynamic> json) {
     final rawPayload = json['payload'] ?? json['data'];
-    final parsedPayload = _notificationPayload(rawPayload);
+    Map<String, dynamic> payload = const {};
+    if (rawPayload is Map) {
+      payload = Map<String, dynamic>.from(rawPayload);
+    } else if (rawPayload is String && rawPayload.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawPayload);
+        if (decoded is Map) payload = Map<String, dynamic>.from(decoded);
+      } on FormatException {
+        // Older notification rows may contain plain text in Data.
+      }
+    }
     return MebablUserNotification(
       id: _notificationId(json),
       type: (json['type'] ?? json['notificationType']) is String
           ? (json['type'] ?? json['notificationType']) as String
           : (throw const FormatException('Expected a notification type.')),
-      userId: optionalString(json, 'userId'),
-      title: optionalString(json, 'title'),
-      message: optionalString(json, 'message') ?? optionalString(json, 'body'),
-      actorUserId: optionalString(json, 'actorUserId') ?? optionalString(json, 'actorId'),
-      targetType: optionalString(json, 'targetType'),
-      targetId: optionalString(json, 'targetId'),
-      deepLink: optionalString(json, 'deepLink'),
-      sourceEventId: optionalString(json, 'sourceEventId'),
-      payload: parsedPayload,
+      title: optionalString(json, 'title') ?? optionalString(payload, 'title'),
+      message: optionalString(json, 'message') ??
+          optionalString(json, 'body') ?? optionalString(payload, 'message'),
+      actorUserId: optionalString(json, 'actorUserId') ??
+          optionalString(json, 'actorId') ?? optionalString(payload, 'actorUserId'),
+      targetType: optionalString(json, 'targetType') ?? optionalString(payload, 'targetType'),
+      targetId: optionalString(json, 'targetId') ?? optionalString(payload, 'targetId'),
+      deepLink: optionalString(json, 'deepLink') ?? optionalString(payload, 'deepLink'),
+      sourceEventId: optionalString(json, 'sourceEventId') ??
+          optionalString(payload, 'sourceEventId'),
+      payload: payload,
       isRead: json['isRead'] == true,
       readAtUtc: optionalDateTime(json['readAtUtc'] ?? json['readAt']),
       archivedAtUtc: optionalDateTime(json['archivedAtUtc'] ?? json['archivedAt']),
@@ -71,7 +81,6 @@ class MebablUserNotification {
   Map<String, dynamic> toJson() => {
         'id': id,
         'type': type,
-        'userId': userId,
         'title': title,
         'message': message,
         'actorUserId': actorUserId,
@@ -85,17 +94,4 @@ class MebablUserNotification {
         'archivedAtUtc': archivedAtUtc?.toIso8601String(),
         'createdAtUtc': createdAtUtc.toIso8601String(),
       };
-}
-
-Map<String, dynamic> _notificationPayload(Object? value) {
-  if (value is Map) return Map<String, dynamic>.from(value);
-  if (value is String && value.trim().isNotEmpty) {
-    try {
-      final decoded = jsonDecode(value);
-      if (decoded is Map) return Map<String, dynamic>.from(decoded);
-    } catch (_) {
-      return {'raw': value};
-    }
-  }
-  return const {};
 }

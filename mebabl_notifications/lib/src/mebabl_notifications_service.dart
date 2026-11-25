@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:dio/dio.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -14,10 +15,11 @@ import 'models/notification_preferences.dart';
 
 /// User-scoped Notifications API and Firebase Cloud Messaging bridge.
 ///
-/// Firebase itself must be initialized by the host application before calling
-/// the FCM convenience methods. The backend stores only the device token and
-/// installation metadata; Firebase service-account credentials never belong
-/// in this client package.
+/// The SDK initializes the default Firebase app when needed on native targets;
+/// the host must still bundle valid Android/iOS Firebase configuration. Web
+/// applications must initialize Firebase with their FirebaseOptions first.
+/// The backend stores only device token and installation metadata; Firebase
+/// service-account credentials never belong in this client package.
 class MebablNotificationsService {
   static const String defaultBasePath = '/api/sdk/notifications';
   static const int maximumPageSize = 100;
@@ -41,19 +43,29 @@ class MebablNotificationsService {
   }
 
   Future<MebablNotificationPage> getNotifications({
-    int offset = 0,
-    int limit = 30,
+    int? offset,
+    int? limit,
+    int page = 1,
+    int pageSize = 30,
+    String? cursor,
+    bool includeArchived = false,
     CancelToken? cancelToken,
   }) async {
-    if (offset < 0) {
-      throw ArgumentError.value(offset, 'offset', 'Offset cannot be negative.');
-    }
-    if (limit < 1 || limit > maximumPageSize) {
-      throw ArgumentError.value(limit, 'limit', 'Limit must be between 1 and $maximumPageSize.');
+    // The deployed SDK Notifications API currently uses offset/limit and
+    // returns a JSON array. Page arguments remain supported for source
+    // compatibility with apps built against the earlier SDK contract.
+    _validatePage(page, pageSize);
+    final resolvedOffset = offset ?? ((page - 1) * pageSize);
+    final resolvedLimit = limit ?? pageSize;
+    if (resolvedOffset < 0 || resolvedLimit < 1 || resolvedLimit > maximumPageSize) {
+      throw ArgumentError('offset must be >= 0 and limit must be 1..$maximumPageSize.');
     }
     final response = await core.http.get<Object>(
       basePath,
-      queryParameters: {'offset': offset, 'limit': limit},
+      queryParameters: {
+        'offset': resolvedOffset,
+        'limit': resolvedLimit,
+      },
       authMode: MebablAuthMode.user,
       cancelToken: cancelToken,
     );
@@ -95,6 +107,17 @@ class MebablNotificationsService {
     );
   }
 
+  Future<void> archive({
+    required String notificationId,
+    CancelToken? cancelToken,
+  }) async {
+    final id = _requireId(notificationId, 'notificationId');
+    await core.http.patch<void>(
+      '$basePath/$id/archive',
+      authMode: MebablAuthMode.user,
+      cancelToken: cancelToken,
+    );
+  }
 
   Future<void> delete({
     required String notificationId,
@@ -176,11 +199,10 @@ class MebablNotificationsService {
         'Installation ID must contain 1 to 128 characters.',
       );
     }
-    if (pushToken.isEmpty || pushToken.length > 8192) {
+    if (pushToken.isEmpty || pushToken.length > 4096) {
       throw ArgumentError.value(token, 'token', 'Push token is empty or too long.');
     }
-    if (!const {'android', 'ios', 'web', 'macos', 'windows', 'linux'}
-        .contains(normalizedPlatform)) {
+    if (!const {'android', 'ios', 'web'}.contains(normalizedPlatform)) {
       throw ArgumentError.value(platform, 'platform', 'Unsupported device platform.');
     }
     final response = await core.http.post<Object>(
@@ -195,10 +217,36 @@ class MebablNotificationsService {
       authMode: MebablAuthMode.user,
       cancelToken: cancelToken,
     );
-    return MebablDeviceInstallation.fromJson(
+    final installationResult = MebablDeviceInstallation.fromJson(
       _unwrapObject(response.data, const ['device', 'installation', 'data']),
     );
+    await _saveRegisteredDeviceId(installationResult.id);
+    return installationResult;
   }
+
+  /// Returns the device registration ID saved for this application on this
+  /// installation. It is needed to revoke the server-side registration before
+  /// the User JWT is cleared during sign-out.
+  Future<String?> getRegisteredDeviceId({
+    FlutterSecureStorage? secureStorage,
+  }) async {
+    final storage = secureStorage ?? const FlutterSecureStorage();
+    final value = await storage.read(key: _registeredDeviceStorageKey);
+    return value == null || value.trim().isEmpty ? null : value.trim();
+  }
+
+  Future<void> _saveRegisteredDeviceId(String deviceId) async {
+    final storage = const FlutterSecureStorage();
+    await storage.write(key: _registeredDeviceStorageKey, value: deviceId);
+  }
+
+  Future<void> _clearRegisteredDeviceId() async {
+    final storage = const FlutterSecureStorage();
+    await storage.delete(key: _registeredDeviceStorageKey);
+  }
+
+  String get _registeredDeviceStorageKey =>
+      'mebabl.notification.device.${core.config.applicationId}';
 
   Future<void> unregisterDevice({
     required String deviceId,
@@ -210,12 +258,16 @@ class MebablNotificationsService {
       authMode: MebablAuthMode.user,
       cancelToken: cancelToken,
     );
+    if (await getRegisteredDeviceId() == id) {
+      await _clearRegisteredDeviceId();
+    }
   }
 
   /// Requests OS permission, obtains the current FCM token and registers it.
   ///
-  /// The host app must call `Firebase.initializeApp()` first and provide the
-  /// matching `GoogleService-Info.plist` / `google-services.json`.
+  /// When no [messaging] instance is injected, the SDK initializes the default
+  /// Firebase app on first use. Native Firebase configuration is still required
+  /// (`GoogleService-Info.plist` / `google-services.json`; web needs FirebaseOptions).
   Future<MebablDeviceInstallation> registerCurrentFirebaseDevice({
     required String installationId,
     String? locale,
@@ -223,7 +275,7 @@ class MebablNotificationsService {
     bool requestPermission = true,
     CancelToken? cancelToken,
   }) async {
-    final firebase = _requireMessaging();
+    final firebase = await _requireMessagingInitialized();
     if (requestPermission) {
       final settings = await firebase.requestPermission(
         alert: true,
@@ -297,13 +349,25 @@ class MebablNotificationsService {
     return FirebaseMessaging.onMessageOpenedApp;
   }
 
-  Future<RemoteMessage?> getInitialMessage() {
-    return _requireMessaging().getInitialMessage();
+  Future<RemoteMessage?> getInitialMessage() async {
+    final firebase = await _requireMessagingInitialized();
+    return firebase.getInitialMessage();
+  }
+
+  Future<FirebaseMessaging> _requireMessagingInitialized() async {
+    final injected = messaging;
+    if (injected != null) return injected;
+
+    if (!Firebase.apps.any((app) => app.name == '[DEFAULT]')) {
+      await Firebase.initializeApp();
+    }
+    return FirebaseMessaging.instance;
   }
 
   FirebaseMessaging _requireMessaging() {
-    final current = messaging ?? FirebaseMessaging.instance;
-    return current;
+    // Token-refresh listeners are attached immediately after successful device
+    // registration, which has already initialized the default Firebase app.
+    return messaging ?? FirebaseMessaging.instance;
   }
 
   String get _currentPlatform {
@@ -311,10 +375,9 @@ class MebablNotificationsService {
     return switch (defaultTargetPlatform) {
       TargetPlatform.android => 'android',
       TargetPlatform.iOS => 'ios',
-      TargetPlatform.macOS => 'macos',
-      TargetPlatform.windows => 'windows',
-      TargetPlatform.linux => 'linux',
-      TargetPlatform.fuchsia => 'android',
+      _ => throw UnsupportedError(
+          'Firebase device registration is supported on Android, iOS, and web.',
+        ),
     };
   }
 
@@ -328,6 +391,13 @@ class MebablNotificationsService {
         '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
+  void _validatePage(int page, int pageSize) {
+    if (page < 1 || pageSize < 1 || pageSize > maximumPageSize) {
+      throw ArgumentError(
+        'page must be positive and pageSize must be 1..$maximumPageSize.',
+      );
+    }
+  }
 
   String _requireId(String value, String name) {
     final normalized = value.trim();

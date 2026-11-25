@@ -22,18 +22,16 @@ void main() {
   });
 
   test('preserves server preference fields unknown to this SDK version', () {
-    final preferences = MebablNotificationPreferences.fromJson([
-      {
-        'category': 'social',
-        'pushEnabled': true,
-        'mutedUntilUtc': null,
-        'isCustomized': false,
-      },
-    ]);
+    final preferences = MebablNotificationPreferences.fromJson({
+      'pushEnabled': true,
+      'inAppEnabled': true,
+      'mutedTypes': ['chat.message'],
+      'quietHours': {'from': '22:00', 'to': '08:00'},
+    });
 
-    expect(preferences.categories.single.category, 'social');
-    expect(preferences.categories.single.pushEnabled, isTrue);
-    expect(preferences.toJson()['preferences'], hasLength(1));
+    expect(preferences.pushEnabled, isTrue);
+    expect(preferences.mutedTypes, contains('chat.message'));
+    expect(preferences.toJson()['quietHours'], isNotNull);
   });
 
   test('parses unread count response through model helpers', () {

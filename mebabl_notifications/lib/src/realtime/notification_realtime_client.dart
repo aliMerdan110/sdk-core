@@ -19,6 +19,7 @@ class MebablNotificationRealtimeClient {
   final String? joinArgument;
 
   HubConnection? _connection;
+  Future<void>? _connecting;
   final StreamController<MebablNotificationRealtimeEvent> _events =
       StreamController<MebablNotificationRealtimeEvent>.broadcast();
   final StreamController<Object> _errors = StreamController<Object>.broadcast();
@@ -37,11 +38,40 @@ class MebablNotificationRealtimeClient {
   Stream<Object> get errors => _errors.stream;
   bool get isConnected => _connection?.state == HubConnectionState.Connected;
 
-  Future<void> connect() async {
+  Future<void> connect() {
+    if (_disposed) {
+      return Future<void>.error(
+        StateError('Notification realtime client disposed.'),
+      );
+    }
+    if (isConnected) return Future<void>.value();
+
+    final pending = _connecting;
+    if (pending != null) return pending;
+
+    final future = _connectInternal();
+    _connecting = future;
+    return future.whenComplete(() {
+      if (identical(_connecting, future)) _connecting = null;
+    });
+  }
+
+  Future<void> _connectInternal() async {
     if (_disposed) throw StateError('Notification realtime client disposed.');
     if (isConnected) return;
 
+    final previous = _connection;
+    if (previous != null) {
+      _connection = null;
+      try {
+        await previous.stop();
+      } catch (_) {
+        // A stale disconnected transport must not prevent a fresh connection.
+      }
+    }
+
     final token = await getAccessToken();
+    if (_disposed) throw StateError('Notification realtime client disposed.');
     if (token == null || token.trim().isEmpty) {
       throw const MebablException(
         message: 'A signed-in user session is required for notifications realtime.',
@@ -82,8 +112,25 @@ class MebablNotificationRealtimeClient {
     });
 
     _connection = connection;
-    await connection.start();
-    await _joinIfRequired(connection);
+    try {
+      await connection.start();
+      if (_disposed) {
+        await connection.stop();
+        if (identical(_connection, connection)) _connection = null;
+        throw StateError('Notification realtime client disposed.');
+      }
+      await _joinIfRequired(connection);
+    } catch (_) {
+      if (identical(_connection, connection)) {
+        _connection = null;
+      }
+      try {
+        await connection.stop();
+      } catch (_) {
+        // Preserve the original connection error for the caller.
+      }
+      rethrow;
+    }
   }
 
   Future<Object?> invokeServerMethod(

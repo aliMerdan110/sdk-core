@@ -31,7 +31,9 @@ class MebablNotificationRealtimeEvent {
           optionalString(json, 'type') ??
           'notification.created',
       notificationId: optionalString(json, 'notificationId') ??
-          optionalString(payload, 'notificationId'),
+          optionalString(json, 'id') ??
+          optionalString(payload, 'notificationId') ??
+          optionalString(payload, 'id'),
       eventId: optionalString(json, 'eventId'),
       data: payload,
     );

@@ -1,6 +1,8 @@
 import 'json_helpers.dart';
 
-/// One server-defined notification category preference.
+String _preferenceString(Object? value) => value is String ? value : '';
+
+/// One category-specific push notification preference returned by the API.
 class MebablNotificationPreference {
   final String category;
   final bool pushEnabled;
@@ -15,58 +17,98 @@ class MebablNotificationPreference {
   });
 
   factory MebablNotificationPreference.fromJson(Map<String, dynamic> json) {
-    final category = json['category'];
-    if (category is! String || category.trim().isEmpty) {
-      throw const FormatException('Expected a notification preference category.');
-    }
-    final pushEnabled = json['pushEnabled'];
-    if (pushEnabled is! bool) {
-      throw const FormatException('Expected pushEnabled to be a boolean.');
-    }
+    final muted = json['mutedUntilUtc'] ?? json['mutedUntil'];
     return MebablNotificationPreference(
-      category: category,
-      pushEnabled: pushEnabled,
-      mutedUntilUtc: optionalDateTime(json['mutedUntilUtc'] ?? json['mutedUntil']),
+      category: _preferenceString(json['category']),
+      pushEnabled: json['pushEnabled'] == true,
+      mutedUntilUtc: muted is String && muted.trim().isNotEmpty
+          ? DateTime.tryParse(muted)?.toUtc()
+          : null,
       isCustomized: json['isCustomized'] == true,
     );
   }
 
-  Map<String, dynamic> toUpdateJson() => {
+  /// The API update contract calls the timestamp field `mutedUntil`.
+  Map<String, dynamic> toJson() => {
         'category': category,
         'pushEnabled': pushEnabled,
         'mutedUntil': mutedUntilUtc?.toUtc().toIso8601String(),
       };
 }
 
-/// Collection returned by GET/PUT `/api/sdk/notifications/preferences`.
+/// User notification preferences grouped by backend-defined categories.
+///
+/// The model also retains the original global fields for backwards
+/// compatibility with older SDK versions.
 class MebablNotificationPreferences {
   final List<MebablNotificationPreference> categories;
+  final bool? inAppEnabled;
+  final bool? pushEnabled;
+  final bool? emailEnabled;
+  final List<String> mutedTypes;
+  final Map<String, dynamic> additionalSettings;
 
-  MebablNotificationPreferences({
-    required Iterable<MebablNotificationPreference> categories,
-  }) : categories = List.unmodifiable(categories);
+  const MebablNotificationPreferences({
+    this.categories = const [],
+    this.inAppEnabled,
+    this.pushEnabled,
+    this.emailEnabled,
+    this.mutedTypes = const [],
+    this.additionalSettings = const {},
+  });
 
   factory MebablNotificationPreferences.fromJson(Object? value) {
-    Object? raw = value;
-    if (value is Map) {
-      raw = value['preferences'] ?? value['items'] ?? value['data'];
+    if (value is List) {
+      return MebablNotificationPreferences(
+        categories: value
+            .whereType<Map>()
+            .map((item) => MebablNotificationPreference.fromJson(
+                  Map<String, dynamic>.from(item),
+                ))
+            .toList(growable: false),
+      );
     }
-    if (raw is! List) {
-      throw const FormatException('Expected notification preferences to be an array.');
-    }
+
+    final json = asJsonMap(value, 'notification preferences');
+    final nested = json['preferences'] ?? json['data'];
+    if (nested is List) return MebablNotificationPreferences.fromJson(nested);
+
+    final muted = json['mutedTypes'];
+    const known = <String>{
+      'inAppEnabled',
+      'pushEnabled',
+      'emailEnabled',
+      'mutedTypes',
+      'categories',
+      'preferences',
+      'data',
+    };
+    final rawCategories = json['categories'];
     return MebablNotificationPreferences(
-      categories: raw
-          .map((item) => MebablNotificationPreference.fromJson(asJsonMap(item, 'notification preference')))
-          .toList(growable: false),
+      categories: rawCategories is List
+          ? rawCategories
+              .whereType<Map>()
+              .map((item) => MebablNotificationPreference.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .toList(growable: false)
+          : const [],
+      inAppEnabled: json['inAppEnabled'] is bool ? json['inAppEnabled'] as bool : null,
+      pushEnabled: json['pushEnabled'] is bool ? json['pushEnabled'] as bool : null,
+      emailEnabled: json['emailEnabled'] is bool ? json['emailEnabled'] as bool : null,
+      mutedTypes: muted is List ? muted.whereType<String>().toList(growable: false) : const [],
+      additionalSettings: Map<String, dynamic>.fromEntries(
+        json.entries.where((entry) => !known.contains(entry.key)),
+      ),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'preferences': categories.map((item) => item.toUpdateJson()).toList(growable: false),
+        'preferences': categories.map((item) => item.toJson()).toList(growable: false),
+        ...additionalSettings,
+        if (inAppEnabled != null) 'inAppEnabled': inAppEnabled,
+        if (pushEnabled != null) 'pushEnabled': pushEnabled,
+        if (emailEnabled != null) 'emailEnabled': emailEnabled,
+        if (categories.isEmpty) 'mutedTypes': mutedTypes,
       };
-
-  MebablNotificationPreferences copyWith({
-    Iterable<MebablNotificationPreference>? categories,
-  }) =>
-      MebablNotificationPreferences(categories: categories ?? this.categories);
 }
