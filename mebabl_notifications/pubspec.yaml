@@ -1,6 +1,6 @@
 name: mebabl_notifications
 description: Flutter SDK for Mebabl in-app notifications, device registration, user preferences, and Firebase Cloud Messaging.
-version: 1.2.0
+version: 1.3.0
 repository: https://github.com/aliMerdan110/Mebabl.Sdk
 homepage: https://mebabl.com
 issue_tracker: https://github.com/aliMerdan110/Mebabl.Sdk/issues
