@@ -1,0 +1,27 @@
+name: mebabl_chat
+description: Typed Flutter SDK for Mebabl conversations, messages, threads, media references, and realtime chat events.
+version: 1.2.0
+repository: https://github.com/aliMerdan110/Mebabl.Sdk
+homepage: https://mebabl.com
+issue_tracker: https://github.com/aliMerdan110/Mebabl.Sdk/issues
+topics:
+  - chat
+  - messaging
+  - flutter
+  - sdk
+
+environment:
+  sdk: ">=3.8.1 <4.0.0"
+  flutter: ">=3.32.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  mebabl_core: ^1.2.0
+  dio: ^5.11.1
+  signalr_netcore: ^1.4.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
