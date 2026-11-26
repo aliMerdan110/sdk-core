@@ -1,5 +1,3 @@
-// lib/src/models/login_response.dart
-
 class MebablLoginResponse {
   final String accountId;
   final String userId;
@@ -13,14 +11,20 @@ class MebablLoginResponse {
     required this.refreshToken,
   });
 
-  factory MebablLoginResponse.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory MebablLoginResponse.fromJson(Map<String, dynamic> json) {
     return MebablLoginResponse(
-      accountId: json['accountId']?.toString() ?? '',
-      userId: json['userId']?.toString() ?? '',
-      accessToken: json['accessToken']?.toString() ?? '',
-      refreshToken: json['refreshToken']?.toString() ?? '',
+      accountId: _requiredString(json, 'accountId'),
+      userId: _requiredString(json, 'userId'),
+      accessToken: _requiredString(json, 'accessToken'),
+      refreshToken: _requiredString(json, 'refreshToken'),
     );
   }
+}
+
+String _requiredString(Map<String, dynamic> json, String key) {
+  final value = json[key];
+  if (value is! String || value.trim().isEmpty) {
+    throw FormatException('Authentication response is missing "$key".');
+  }
+  return value.trim();
 }

@@ -1,5 +1,3 @@
-// lib/src/models/auth_state.dart
-
 import 'auth_user.dart';
 
 enum MebablAuthState {
@@ -7,6 +5,8 @@ enum MebablAuthState {
   signedIn,
 }
 
+/// A typed authentication-state event for consumers that need more than the
+/// current user's nullable stream value.
 class MebablAuthStateChanged {
   final MebablAuthState state;
   final AuthUser? user;

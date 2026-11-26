@@ -1,5 +1,3 @@
-// lib/src/models/auth_user.dart
-
 class AuthUser {
   final String accountId;
   final String userId;
@@ -19,36 +17,41 @@ class AuthUser {
     required this.permissions,
   });
 
-  factory AuthUser.fromJson(Map<String, dynamic> json) {
+  factory AuthUser.fromJson(
+    Map<String, dynamic> json, {
+    String? fallbackApplicationId,
+  }) {
     return AuthUser(
-      accountId: json['accountId']?.toString() ?? '',
-      userId: json['userId']?.toString() ?? '',
-      applicationId: json['applicationId']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-      username: json['username']?.toString() ?? '',
-      roles: _stringList(json['roles']),
-      permissions: _stringList(json['permissions']),
+      accountId: _readString(json, 'accountId'),
+      userId: _readString(json, 'userId'),
+      applicationId: _readString(json, 'applicationId').isNotEmpty
+          ? _readString(json, 'applicationId')
+          : (fallbackApplicationId ?? ''),
+      email: _readString(json, 'email'),
+      username: _readString(json, 'username'),
+      roles: _readStringList(json['roles']),
+      permissions: _readStringList(json['permissions']),
     );
   }
 
-  static List<String> _stringList(dynamic value) {
-    if (value is! List) {
-      return const [];
-    }
+  static String _readString(Map<String, dynamic> json, String key) {
+    final value = json[key];
+    return value is String ? value : (value?.toString() ?? '');
+  }
+
+  static List<String> _readStringList(dynamic value) {
+    if (value is! List) return const [];
 
     return value
-        .map((item) => item.toString())
+        .where((item) => item != null)
+        .map((item) => item.toString().trim())
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
   }
 
-  bool hasRole(String role) {
-    return roles.contains(role);
-  }
+  bool hasRole(String role) => roles.contains(role);
 
-  bool hasPermission(String permission) {
-    return permissions.contains(permission);
-  }
+  bool hasPermission(String permission) => permissions.contains(permission);
 
   @override
   String toString() {

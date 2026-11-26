@@ -1,5 +1,3 @@
-// lib/src/models/register_request.dart
-
 class MebablRegisterRequest {
   final String email;
   final String username;
@@ -11,11 +9,9 @@ class MebablRegisterRequest {
     required this.password,
   });
 
-  Map<String, dynamic> toJson() {
-    return {
-      'email': email,
-      'username': username,
-      'password': password,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'email': email.trim(),
+        'username': username.trim(),
+        'password': password,
+      };
 }
