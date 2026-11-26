@@ -10,7 +10,7 @@ environment:
   flutter: ">=3.32.0"
 
 dependencies:
-  mebabl_core: ^1.2.0
+  mebabl_core: ^1.3.0
   dio: ^5.11.1
 
 dev_dependencies:
