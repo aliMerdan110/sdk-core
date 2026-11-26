@@ -1,5 +1,13 @@
 import 'package:dio/dio.dart';
 
+import '../../errors/mebabl_exception.dart';
+import '../mebabl_auth_mode.dart';
+import '../mebabl_http_client.dart';
+
+/// Attaches a User JWT supplied by `mebabl_auth` to user-protected requests.
+///
+/// Refresh-token rotation remains the responsibility of `mebabl_auth`; this
+/// interceptor only asks its provider for a valid access token.
 class MebablAuthInterceptor extends Interceptor {
   final Future<String?> Function() getValidAccessToken;
 
@@ -7,44 +15,36 @@ class MebablAuthInterceptor extends Interceptor {
     required this.getValidAccessToken,
   });
 
-  /// Endpoints that do not require a User JWT.
-  ///
-  /// Application-authenticated endpoints are also bypassed here because
-  /// MebablApplicationAuthInterceptor is responsible for attaching the
-  /// Application JWT to them.
-  bool _isAuthenticationEndpoint(String path) {
-    return path == '/api/application-auth/token' ||
-        path == '/api/sdk/auth/register' ||
-        path == '/api/sdk/auth/login' ||
-        path == '/api/sdk/auth/forgot-password' ||
-        path == '/api/sdk/auth/refresh' ||
-        path == '/api/sdk/auth/reset-password' ||
-        path == '/api/sdk/auth/verify-email';
-  }
-
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    if (_isAuthenticationEndpoint(options.path)) {
+    final mode = options.extra[MebablHttpClient.authModeExtraKey];
+    if (mode != MebablAuthMode.user) {
       handler.next(options);
       return;
     }
 
     try {
       final accessToken = await getValidAccessToken();
-
-      if (accessToken != null && accessToken.isNotEmpty) {
-        options.headers['Authorization'] = 'Bearer $accessToken';
+      if (accessToken == null || accessToken.trim().isEmpty) {
+        throw const MebablException(
+          message: 'A signed-in user session is required.',
+          statusCode: 401,
+        );
       }
 
+      options.headers['Authorization'] = 'Bearer $accessToken';
       handler.next(options);
     } catch (error) {
       handler.reject(
         DioException(
           requestOptions: options,
           error: error,
+          message: error is MebablException
+              ? error.message
+              : 'User authentication failed.',
           type: DioExceptionType.unknown,
         ),
       );
