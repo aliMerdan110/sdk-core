@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+- Add device listing, quiet-hours policies, Web Push key retrieval, and browser subscription registration.
+- Parse priority, category, locale, and aggregated notification counts from the backend inbox DTO.
+- Expose device app version and registration timestamps.
+- Explicitly reject the legacy archive API because the backend has no notification archive endpoint.
+
 ## 1.0.3
 
 - Keep the exported `getRegisteredDeviceId()` API for restoring and revoking device registrations.

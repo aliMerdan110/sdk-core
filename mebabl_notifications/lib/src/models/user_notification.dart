@@ -23,6 +23,10 @@ class MebablUserNotification {
   final DateTime? readAtUtc;
   final DateTime? archivedAtUtc;
   final DateTime createdAtUtc;
+  final String priority;
+  final int aggregatedCount;
+  final String category;
+  final String? locale;
 
   const MebablUserNotification({
     required this.id,
@@ -39,6 +43,10 @@ class MebablUserNotification {
     this.readAtUtc,
     this.archivedAtUtc,
     required this.createdAtUtc,
+    this.priority = 'normal',
+    this.aggregatedCount = 1,
+    this.category = 'general',
+    this.locale,
   });
 
   factory MebablUserNotification.fromJson(Map<String, dynamic> json) {
@@ -75,6 +83,10 @@ class MebablUserNotification {
       archivedAtUtc: optionalDateTime(json['archivedAtUtc'] ?? json['archivedAt']),
       createdAtUtc: optionalDateTime(json['createdAtUtc'] ?? json['createdAt']) ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      priority: optionalString(json, 'priority') ?? 'normal',
+      aggregatedCount: intValue(json['aggregatedCount'], fallback: 1),
+      category: optionalString(json, 'category') ?? 'general',
+      locale: optionalString(json, 'locale'),
     );
   }
 
@@ -93,5 +105,9 @@ class MebablUserNotification {
         'readAtUtc': readAtUtc?.toIso8601String(),
         'archivedAtUtc': archivedAtUtc?.toIso8601String(),
         'createdAtUtc': createdAtUtc.toIso8601String(),
+        'priority': priority,
+        'aggregatedCount': aggregatedCount,
+        'category': category,
+        'locale': locale,
       };
 }

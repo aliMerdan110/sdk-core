@@ -48,12 +48,19 @@ class MebablNotificationsService {
     int page = 1,
     int pageSize = 30,
     String? cursor,
+    @Deprecated('The backend does not support archived notification filtering.')
     bool includeArchived = false,
     CancelToken? cancelToken,
   }) async {
-    // The deployed SDK Notifications API currently uses offset/limit and
-    // returns a JSON array. Page arguments remain supported for source
-    // compatibility with apps built against the earlier SDK contract.
+    // The backend exposes an offset/limit inbox and returns a JSON array.
+    // Fail explicitly for obsolete cursor/archive options instead of silently
+    // returning a different result set.
+    if (includeArchived) {
+      throw UnsupportedError('The backend does not implement notification archiving.');
+    }
+    if (cursor != null && cursor.trim().isNotEmpty) {
+      throw ArgumentError('The notification API currently uses offset/limit, not cursors.');
+    }
     _validatePage(page, pageSize);
     final resolvedOffset = offset ?? ((page - 1) * pageSize);
     final resolvedLimit = limit ?? pageSize;
@@ -111,11 +118,9 @@ class MebablNotificationsService {
     required String notificationId,
     CancelToken? cancelToken,
   }) async {
-    final id = _requireId(notificationId, 'notificationId');
-    await core.http.patch<void>(
-      '$basePath/$id/archive',
-      authMode: MebablAuthMode.user,
-      cancelToken: cancelToken,
+    _requireId(notificationId, 'notificationId');
+    throw UnsupportedError(
+      'The backend has no archive endpoint for notifications. Use markAsRead or delete.',
     );
   }
 
@@ -157,6 +162,110 @@ class MebablNotificationsService {
 
   /// Registers a push token already obtained by the application.
   ///
+  /// Lists active device registrations for the authenticated user.
+  Future<List<MebablDeviceInstallation>> getDevices({
+    CancelToken? cancelToken,
+  }) async {
+    final response = await core.http.get<Object>(
+      '$basePath/devices',
+      authMode: MebablAuthMode.user,
+      cancelToken: cancelToken,
+    );
+    return readItems(response.data, 'notification devices')
+        .map(MebablDeviceInstallation.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> getQuietHours({CancelToken? cancelToken}) async {
+    final response = await core.http.get<Object>(
+      '$basePath/quiet-hours',
+      authMode: MebablAuthMode.user,
+      cancelToken: cancelToken,
+    );
+    return asJsonMap(response.data, 'quiet-hours policy');
+  }
+
+  Future<Map<String, dynamic>> updateQuietHours({
+    required bool isEnabled,
+    required String timeZoneId,
+    required String startTime,
+    required String endTime,
+    required int daysOfWeekMask,
+    required bool allowHighPriority,
+    CancelToken? cancelToken,
+  }) async {
+    if (daysOfWeekMask < 0 || daysOfWeekMask > 127) {
+      throw ArgumentError.value(daysOfWeekMask, 'daysOfWeekMask');
+    }
+    final timePattern = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+    if (!timePattern.hasMatch(startTime) || !timePattern.hasMatch(endTime) ||
+        startTime == endTime) {
+      throw ArgumentError('Quiet hours must use distinct HH:mm start and end times.');
+    }
+    final zone = timeZoneId.trim();
+    if (zone.isEmpty || zone.length > 100) {
+      throw ArgumentError.value(timeZoneId, 'timeZoneId');
+    }
+    final response = await core.http.put<Object>(
+      '$basePath/quiet-hours',
+      data: {
+        'isEnabled': isEnabled,
+        'timeZoneId': zone,
+        'startTime': startTime,
+        'endTime': endTime,
+        'daysOfWeekMask': daysOfWeekMask,
+        'allowHighPriority': allowHighPriority,
+      },
+      authMode: MebablAuthMode.user,
+      cancelToken: cancelToken,
+    );
+    return asJsonMap(response.data, 'quiet-hours policy');
+  }
+
+  Future<Map<String, dynamic>> getWebPushPublicKey({
+    CancelToken? cancelToken,
+  }) async {
+    final response = await core.http.get<Object>(
+      '$basePath/web-push/public-key',
+      authMode: MebablAuthMode.user,
+      cancelToken: cancelToken,
+    );
+    return asJsonMap(response.data, 'Web Push public key');
+  }
+
+  Future<MebablDeviceInstallation> registerWebPushSubscription({
+    required String installationId,
+    required String endpoint,
+    required String p256dh,
+    required String auth,
+    String? locale,
+    String? appVersion,
+    CancelToken? cancelToken,
+  }) async {
+    final installation = installationId.trim();
+    if (installation.isEmpty || installation.length > 128) {
+      throw ArgumentError.value(installationId, 'installationId');
+    }
+    final response = await core.http.post<Object>(
+      '$basePath/web-push/subscriptions',
+      data: {
+        'installationId': installation,
+        'endpoint': endpoint,
+        'p256dh': p256dh,
+        'auth': auth,
+        if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
+        if (appVersion != null && appVersion.trim().isNotEmpty) 'appVersion': appVersion.trim(),
+      },
+      authMode: MebablAuthMode.user,
+      cancelToken: cancelToken,
+    );
+    final device = MebablDeviceInstallation.fromJson(
+      _unwrapObject(response.data, const ['device', 'installation', 'data']),
+    );
+    await _saveRegisteredDeviceId(device.id);
+    return device;
+  }
+
   /// [installationId] must be a stable, app-generated identifier for this
   /// installation. Do not use the FCM token as the installation ID because
   /// FCM tokens can rotate.
@@ -187,6 +296,7 @@ class MebablNotificationsService {
     required String platform,
     String provider = 'fcm',
     String? locale,
+    String? appVersion,
     CancelToken? cancelToken,
   }) async {
     final installation = installationId.trim();
@@ -213,6 +323,7 @@ class MebablNotificationsService {
         'provider': provider.trim().isEmpty ? 'fcm' : provider.trim(),
         'token': pushToken,
         if (locale != null && locale.trim().isNotEmpty) 'locale': locale.trim(),
+        if (appVersion != null && appVersion.trim().isNotEmpty) 'appVersion': appVersion.trim(),
       },
       authMode: MebablAuthMode.user,
       cancelToken: cancelToken,
@@ -271,6 +382,7 @@ class MebablNotificationsService {
   Future<MebablDeviceInstallation> registerCurrentFirebaseDevice({
     required String installationId,
     String? locale,
+    String? appVersion,
     String? webVapidKey,
     bool requestPermission = true,
     CancelToken? cancelToken,
@@ -307,6 +419,7 @@ class MebablNotificationsService {
       platform: _currentPlatform,
       provider: 'fcm',
       locale: locale,
+      appVersion: appVersion,
       cancelToken: cancelToken,
     );
   }

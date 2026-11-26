@@ -116,6 +116,27 @@ final updated = await notifications.updatePreferences(
 
 Unknown preference fields are preserved by `additionalSettings`.
 
+## Device management and quiet hours
+
+```dart
+final devices = await notifications.getDevices();
+final policy = await notifications.getQuietHours();
+await notifications.updateQuietHours(
+  isEnabled: true,
+  timeZoneId: 'Asia/Baghdad',
+  startTime: '22:00',
+  endTime: '08:00',
+  daysOfWeekMask: 0, // backend convention: all seven days
+  allowHighPriority: true,
+);
+```
+
+The SDK also exposes `getWebPushPublicKey()` and
+`registerWebPushSubscription(...)` for a configured browser subscription.
+Project VAPID private keys stay on the server. The backend does not expose a
+notification archive operation; `archive()` fails explicitly instead of
+calling an unsupported route.
+
 ## Realtime events
 
 ```dart
@@ -145,7 +166,10 @@ Base path: `/api/sdk/notifications`
 - `GET /unread-count` — unread count.
 - `PATCH /{notificationId}/read` — mark one as read.
 - `POST /read-all` — mark all as read.
-- `DELETE /{notificationId}` — delete/hide one notification.
+- `DELETE /{notificationId}` — delete one notification.
+- `GET /devices` — list active device installations.
+- `GET/PUT /quiet-hours` — read and update quiet-hours policy.
+- `GET /web-push/public-key` and `POST /web-push/subscriptions` — configure a browser subscription.
 - `GET /preferences` and `PUT /preferences` — user preferences.
 - `POST /devices` — register/update this installation.
 - `DELETE /devices/{deviceId}` — unregister a device.

@@ -12,7 +12,9 @@ class MebablDeviceInstallation {
   final String platform;
   final String provider;
   final String? locale;
+  final String? appVersion;
   final bool isActive;
+  final DateTime? lastRegisteredAtUtc;
   final DateTime? lastSeenAtUtc;
   final DateTime? createdAtUtc;
 
@@ -22,7 +24,9 @@ class MebablDeviceInstallation {
     required this.platform,
     required this.provider,
     this.locale,
+    this.appVersion,
     this.isActive = true,
+    this.lastRegisteredAtUtc,
     this.lastSeenAtUtc,
     this.createdAtUtc,
   });
@@ -34,7 +38,9 @@ class MebablDeviceInstallation {
       platform: requiredString(json, 'platform'),
       provider: requiredString(json, 'provider'),
       locale: optionalString(json, 'locale'),
+      appVersion: optionalString(json, 'appVersion'),
       isActive: json['isActive'] is bool ? json['isActive'] as bool : true,
+      lastRegisteredAtUtc: optionalDateTime(json['lastRegisteredAtUtc']),
       lastSeenAtUtc: optionalDateTime(json['lastSeenAtUtc'] ?? json['lastSeenAt']),
       createdAtUtc: optionalDateTime(json['createdAtUtc'] ?? json['createdAt']),
     );
@@ -46,7 +52,9 @@ class MebablDeviceInstallation {
         'platform': platform,
         'provider': provider,
         'locale': locale,
+        'appVersion': appVersion,
         'isActive': isActive,
+        'lastRegisteredAtUtc': lastRegisteredAtUtc?.toIso8601String(),
         'lastSeenAtUtc': lastSeenAtUtc?.toIso8601String(),
         'createdAtUtc': createdAtUtc?.toIso8601String(),
       };
