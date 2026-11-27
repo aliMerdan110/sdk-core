@@ -27,6 +27,16 @@ class MebablChatRealtimeClient {
     'userStoppedTyping',
     'userOnline',
     'userOffline',
+    // Calls share RealtimeHub with chat and presence. Keeping these in the
+    // default subscription lets one authenticated connection serve both SDKs.
+    'incomingCall',
+    'callParticipantJoined',
+    'callInvitationExpired',
+    'callParticipantDeclined',
+    'callEnded',
+    'callSignal',
+    'callParticipantLeft',
+    'callMediaStateChanged',
   ];
 
   final MebablCore core;
@@ -56,6 +66,16 @@ class MebablChatRealtimeClient {
   }) : eventNames = List.unmodifiable({
           if (eventName != null && eventName.trim().isNotEmpty) eventName.trim(),
           ...eventNames.map((value) => value.trim()).where((value) => value.isNotEmpty),
+          // Always subscribe to call events because chat and calls share this
+          // authenticated RealtimeHub connection.
+          'incomingCall',
+          'callParticipantJoined',
+          'callInvitationExpired',
+          'callParticipantDeclined',
+          'callEnded',
+          'callSignal',
+          'callParticipantLeft',
+          'callMediaStateChanged',
         });
 
   Stream<MebablChatRealtimeEvent> get events => _events.stream;

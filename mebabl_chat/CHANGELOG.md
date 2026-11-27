@@ -1,3 +1,8 @@
+## 1.4.0
+
+- Subscribe to the shared RealtimeHub call lifecycle and signaling events.
+- Keep call event subscriptions enabled even when callers provide a custom chat event list, allowing `mebabl_calls` to share the authenticated connection.
+
 ## 1.3.0
 
 
